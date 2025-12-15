@@ -195,6 +195,18 @@
                 <div class="split-view">
                     <div class="col-c bg-light border-end">
                         <div class="p-3 border-bottom bg-white">
+                            <label class="form-label small text-muted mb-2 fw-bold">显示数量</label>
+                            <div class="d-flex gap-2 mb-2">
+                                <button class="btn btn-outline-primary btn-sm flex-fill" onclick="setLimit(1)">1</button>
+                                <button class="btn btn-outline-primary btn-sm flex-fill" onclick="setLimit(3)">3</button>
+                                <button class="btn btn-outline-primary btn-sm flex-fill" onclick="setLimit(10)">10</button>
+                            </div>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">自定义</span>
+                                <input type="number" class="form-control" placeholder="数量" onchange="setLimit(this.value)">
+                            </div>
+                        </div>
+                        <div class="p-3 border-bottom bg-white">
                             <label class="form-label small text-muted mb-2 fw-bold">收件箱列表</label>
                             <input type="text" class="form-control form-control-sm" placeholder="搜索邮箱..." onkeyup="filterInboxAccounts(this.value)">
                         </div>
@@ -338,6 +350,9 @@
                         <h6 class="small fw-bold mb-3 text-secondary">邮件过滤条件 (可选)</h6>
                         <div class="mb-2">
                             <input type="text" class="form-control form-control-sm" id="rule-match-sender" placeholder="发件人包含...">
+                        </div>
+                        <div class="mb-2">
+                            <input type="text" class="form-control form-control-sm" id="rule-match-receiver" placeholder="收件人包含...">
                         </div>
                         <div>
                             <input type="text" class="form-control form-control-sm" id="rule-match-body" placeholder="正文包含...">
