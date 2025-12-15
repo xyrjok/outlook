@@ -313,6 +313,7 @@ function saveRule() {
         fetch_limit: $("#rule-limit").val(),
         valid_until: validUntil,
         match_sender: $("#rule-match-sender").val(),
+        match_receiver: $("#rule-match-receiver").val(),
         match_body: $("#rule-match-body").val()
     };
 
@@ -544,6 +545,25 @@ function filterInboxAccounts(val) {
     });
 }
 
+// 添加全局变量
+let currentLimit = 10;
+
+// 添加切换函数
+function setLimit(n) {
+    const num = parseInt(n);
+    if(num > 0) {
+        currentLimit = num;
+        showToast(`已设置为显示 ${num} 封`);
+        // 如果当前有选中的邮箱，立即刷新
+        const activeId = $("#inbox-account-list .active").attr("onclick"); 
+        if(activeId) {
+            // 解析出 ID 和 Name 重新触发加载
+            // 这里简单处理：让用户手动点一下或者自动触发点击
+            $("#inbox-account-list .active").click();
+        }
+    }
+}
+
 function viewInbox(id, name, el) {
     $("#inbox-account-list a").removeClass("active");
     if(el) $(el).addClass("active");
@@ -551,7 +571,7 @@ function viewInbox(id, name, el) {
     const box = $("#email-content-view");
     box.html(`<div class="text-center mt-5"><div class="spinner-border text-primary"></div><p>正在同步 ${escapeHtml(name)}...</p></div>`);
     
-    fetch(`${API_BASE}/emails?account_id=${id}&limit=10`, { headers: getHeaders() })
+    fetch(`${API_BASE}/emails?account_id=${id}&limit=${currentLimit}`, { headers: getHeaders() })
     .then(r => r.json()).then(res => {
         if(res.error) return box.html(`<div class="text-center mt-5 text-danger"><p>错误: ${res.error}</p></div>`);
         if(!res.length) return box.html(`<div class="text-center mt-5 text-muted"><p>收件箱为空</p></div>`);
