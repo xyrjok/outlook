@@ -1,10 +1,205 @@
-body{background:#f8f9fa;font-family:sans-serif;font-size:14px}
-#wrapper{display:flex;width:100%}
-#sidebar-wrapper{min-width:240px;max-width:240px;background:#fff;border-right:1px solid #dee2e6;min-height:100vh}
-#page-content-wrapper{width:100%;padding:20px}
-.sidebar-heading{padding:1rem;font-size:1.2rem;font-weight:500}
-.content-section{display:none} .content-section.active{display:block}
-#login-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:#e9ecef;z-index:9999;display:flex;align-items:center;justify-content:center}
-#mouse-toast{position:absolute;background:rgba(0,0,0,0.7);color:#fff;padding:5px;border-radius:4px;display:none;z-index:9999}
-.split-view{display:flex;height:80vh;border:1px solid #dee2e6;background:#fff}
-.col-c{width:250px;border-right:1px solid #dee2e6} .col-d{flex:1;overflow-y:auto}
+:root {
+    --sidebar-width: 250px;
+    --primary-blue: #007bff;
+}
+
+body { 
+    font-size: 0.9rem; 
+    background-color: #f8f9fa; 
+    overflow-x: hidden; 
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* === 输入框与提示文本样式 === */
+/* 强制覆盖 Bootstrap 默认样式以匹配原项目风格 */
+::placeholder { color: #aaaaaa !important; opacity: 1; }
+.text-muted { color: #999999 !important; }
+.form-text { color: #999999 !important; }
+
+.form-control, .form-select {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    outline: none;
+}
+
+/* === 布局结构 === */
+#wrapper {
+    display: flex;
+    width: 100%;
+    align-items: stretch;
+}
+
+/* 侧边栏 */
+#sidebar-wrapper {
+    min-width: var(--sidebar-width);
+    max-width: var(--sidebar-width);
+    background: #343a40; /* 深色背景 */
+    color: #fff;
+    min-height: 100vh;
+    border-right: 1px solid rgba(0,0,0,0.1);
+    position: fixed; /* 固定在左侧 */
+    z-index: 1000;
+}
+
+.sidebar-heading {
+    padding: 1.5rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-align: center;
+    background: rgba(0,0,0,0.1);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+#sidebar-wrapper .list-group-item {
+    background-color: transparent;
+    color: #ced4da;
+    border: none;
+    padding: 1rem 1.5rem;
+    border-left: 4px solid transparent;
+    border-radius: 0;
+}
+
+#sidebar-wrapper .list-group-item:hover {
+    background-color: rgba(255,255,255,0.05);
+    color: #fff;
+}
+
+#sidebar-wrapper .list-group-item.active {
+    background-color: rgba(255,255,255,0.1);
+    color: #fff;
+    border-left-color: var(--primary-blue);
+    font-weight: bold;
+}
+
+/* 主内容区域 */
+#page-content-wrapper {
+    width: 100%;
+    padding: 20px;
+    margin-left: var(--sidebar-width); /* 让出侧边栏位置 */
+    background-color: #f8f9fa;
+}
+
+/* 内容板块切换 */
+.content-section { 
+    display: none; 
+    animation: fadeIn 0.3s ease-in-out;
+}
+.content-section.active { display: block; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.content-section h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: #333;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 10px;
+}
+
+/* === 收件箱分栏布局 (Split View) === */
+.split-view { 
+    display: flex; 
+    height: calc(100vh - 80px); /* 减去顶部padding */
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.col-c { 
+    width: 320px; 
+    border-right: 1px solid #dee2e6; 
+    background: #f8f9fa; 
+    display: flex; 
+    flex-direction: column;
+}
+
+.col-d { 
+    flex: 1; 
+    background: #fff; 
+    overflow-y: auto; 
+    position: relative;
+}
+
+/* 左侧账号列表项样式 */
+#inbox-account-list .list-group-item {
+    border-left: 3px solid transparent;
+    border-radius: 0;
+    margin-bottom: 0;
+    border-right: none;
+    border-top: none;
+    border-bottom: 1px solid #e9ecef;
+}
+
+#inbox-account-list .list-group-item.active {
+    background-color: #fff;
+    color: var(--primary-blue);
+    border-left-color: var(--primary-blue);
+    font-weight: 600;
+    z-index: 1;
+}
+
+/* === 登录遮罩 === */
+#login-overlay {
+    position: fixed; 
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: #e9ecef; 
+    z-index: 9999; 
+    display: flex;
+    align-items: center; 
+    justify-content: center;
+}
+
+/* === 表格与工具样式 === */
+.text-truncate-cell {
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.api-config-cell {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: #666;
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cursor-pointer { cursor: pointer; }
+
+/* === Toast 提示 === */
+#mouse-toast {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    pointer-events: none;
+    z-index: 10000;
+    display: none;
+    white-space: nowrap;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* 按钮微调 */
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
