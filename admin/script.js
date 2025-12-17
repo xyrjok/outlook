@@ -262,9 +262,18 @@ function loadRules() {
         list.forEach(r => {
             const link = `${host}/${r.query_code}`;
             const isExpired = r.valid_until && Date.now() > r.valid_until;
-            const validStr = r.valid_until 
-                ? (isExpired ? `<span class="text-danger">已过期</span>` : new Date(r.valid_until).toLocaleDateString())
-                : '<span class="text-success">永久</span>';
+            
+            let validStr = '<span class="text-success">永久</span>';
+            if (r.valid_until) {
+                if (isExpired) {
+                    validStr = `<span class="text-danger">已过期</span>`;
+                } else {
+                    const days = Math.ceil((r.valid_until - Date.now()) / 86400000);
+                    const d = new Date(r.valid_until);
+                    const dateStr = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+                    validStr = `${days}天 (${dateStr})`;
+                }
+            }
             
             // 构建匹配条件显示字符串
             let matchInfo = [];
