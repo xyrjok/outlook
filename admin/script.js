@@ -487,10 +487,12 @@ function loadTasks() {
         list.forEach(t => {
             const next = new Date(t.next_run_at).toLocaleString();
             
-            // 状态与次数显示
-            const statusClass = t.status==='success'?'text-success':(t.status==='error'?'text-danger':'text-warning');
-            const countsDisplay = `<div style="font-size: 0.75rem; color: #666; margin-top: 2px;">成功:${t.success_count||0} / 失败:${t.fail_count||0}</div>`;
+            // 状态汉化与显示
+            const statusMap = { 'pending': '等待中', 'success': '成功', 'error': '失败', 'running': '运行中' };
+            const statusText = statusMap[t.status] || t.status;
             
+            const statusClass = t.status==='success'?'text-success':(t.status==='error'?'text-danger':'text-warning');
+            const countsDisplay = `<div style="font-size: 0.75rem; color: #666; margin-top: 2px;">成功:${t.success_count||0} / 失败:${t.fail_count||0}</div>`;          
             // 循环开关
             const loopSwitch = `
             <div class="form-check form-switch">
@@ -505,7 +507,7 @@ function loadTasks() {
                     <td class="small">${next}</td>
                     <td>${loopSwitch}</td>
                     <td class="${statusClass} fw-bold">
-                        ${t.status}
+                        ${statusText}
                         ${countsDisplay}
                     </td>
                     <td>
@@ -518,7 +520,15 @@ function loadTasks() {
         });
     });
 }
-
+// 新增：任务列表前端搜索/过滤函数
+function filterTasks(val) {
+    const k = val.toLowerCase();
+    $("#task-list-body tr").each(function() {
+        // 获取当前行的所有文本内容进行匹配
+        const text = $(this).text().toLowerCase();
+        $(this).toggle(text.includes(k));
+    });
+}
 function toggleTaskLoop(id, isLoop) {
     const task = cachedTasks.find(t => t.id === id);
     if (!task) return;
