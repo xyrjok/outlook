@@ -742,7 +742,12 @@ function copyStr(str, msg) {
 $(document).mousemove(function(e){
     $("#mouse-toast").css({top: e.pageY + 15, left: e.pageX + 15});
 });
-
+// 监听密码输入框回车事件
+$("#admin-pass").keyup(function(event) {
+    if (event.keyCode === 13) {
+        doLogin();
+    }
+});
 // 启动
 if(localStorage.getItem("auth_token")) {
     $("#login-overlay").hide();
