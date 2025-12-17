@@ -639,7 +639,7 @@ function downloadFile(content, filename) {
 }
 
 function showToast(msg) {
-    $("#mouse-toast").text(msg).fadeIn().delay(2000).fadeOut();
+    $("#mouse-toast").text(msg).fadeIn().delay(300).fadeOut();
 }
 
 // 新增：点击复制账号信息
