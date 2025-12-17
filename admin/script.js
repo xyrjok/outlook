@@ -599,8 +599,10 @@ function editTask(id) {
     $("#send-subject").val(task.subject);
     $("#send-content").val(task.content);
     
-    if (task.base_date) {
-        const dateObj = new Date(task.base_date);
+    // 优先读取 next_run_at (数据库字段)，兼容 base_date
+    const timeVal = task.next_run_at || task.base_date;
+    if (timeVal) {
+        const dateObj = new Date(timeVal);
         if (!isNaN(dateObj.getTime())) {
             $("#date-a").val(toLocalISOString(dateObj));
         } else {
@@ -609,7 +611,6 @@ function editTask(id) {
     } else {
         $("#date-a").val("");
     }
-
     $("#delay-config").val(task.delay_config);
     $("#loop-switch").prop("checked", !!task.is_loop);
     
