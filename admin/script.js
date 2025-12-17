@@ -297,7 +297,7 @@ function loadRules() {
                     <td class="text-primary" style="cursor:pointer" onclick="copyStr('${escapeHtml(r.alias)}', '已复制别名！')" title="点击复制">${escapeHtml(r.alias)}</td>
                     <td>
                         <div class="input-group input-group-sm" style="width:160px">
-                            <input class="form-control bg-white" value="${r.query_code}" readonly>
+                            <input class="form-control bg-white" style="padding:.25rem .39rem;" value="${r.query_code}" readonly>
                             <button class="btn btn-outline-secondary" onclick="window.open('${link}')" title="打开链接"><i class="fas fa-external-link-alt"></i></button>
                             <button class="btn btn-outline-secondary" onclick="copyStr('${fullLinkStr}', '已复制完整链接！')" title="复制: 别名---链接"><i class="fas fa-copy"></i></button>
                         </div>
