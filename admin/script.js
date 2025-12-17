@@ -70,10 +70,9 @@ function loadAccounts() {
         const tbody = $("#account-list-body");
         tbody.empty();
         
-        // 同步更新发信下拉框
-        const sendSel = $("#send-from");
-        sendSel.empty(); // 清空旧选项
-        sendSel.append('<option value="">请选择发件账号...</option>');
+        // --- [修改] 同步更新发信输入框的数据列表 (datalist) ---
+        const dataList = $("#account-list-options");
+        dataList.empty();
 
         if(list.length === 0) {
             tbody.html('<tr><td colspan="6" class="text-center p-4 text-muted">暂无账号</td></tr>');
@@ -104,7 +103,8 @@ function loadAccounts() {
                 </tr>
             `);
 
-            sendSel.append(`<option value="${acc.id}">${escapeHtml(acc.name)} ${acc.email ? '('+acc.email+')' : ''}</option>`);
+            // --- [修改] 添加到搜索候选项 ---
+            dataList.append(`<option value="${escapeHtml(acc.name)}">${acc.email||''}</option>`);
         });
         
         $("#acc-page-info").text(`共 ${list.length} 条`);
@@ -452,6 +452,23 @@ function exportRules() {
 
 // ================== 3. 发件任务 ==================
 
+// 辅助函数：将 Date 对象转换为 datetime-local 输入框所需的格式 (YYYY-MM-DDThh:mm)
+function toLocalISOString(date) {
+    const pad = (n) => n < 10 ? '0' + n : n;
+    return date.getFullYear() + '-' +
+        pad(date.getMonth() + 1) + '-' +
+        pad(date.getDate()) + 'T' +
+        pad(date.getHours()) + ':' +
+        pad(date.getMinutes());
+}
+
+// 新增辅助函数：根据输入的名称获取 ID
+function getSelectedAccountId() {
+    const name = $("#send-from").val();
+    const acc = cachedAccounts.find(a => a.name == name);
+    return acc ? acc.id : null;
+}
+
 function loadTasks() {
     // 确保有账号数据用于显示名称
     if(!cachedAccounts.length) loadAccounts();
@@ -469,54 +486,165 @@ function loadTasks() {
 
         list.forEach(t => {
             const next = new Date(t.next_run_at).toLocaleString();
-            const statusClass = t.status==='success'?'text-success':(t.status==='error'?'text-danger':'text-warning');
-            const loopIcon = t.is_loop ? '<i class="fas fa-sync text-info" title="循环"></i>' : '';
             
+            // 状态与次数显示
+            const statusClass = t.status==='success'?'text-success':(t.status==='error'?'text-danger':'text-warning');
+            const countsDisplay = `<div style="font-size: 0.75rem; color: #666; margin-top: 2px;">成功:${t.success_count||0} / 失败:${t.fail_count||0}</div>`;
+            
+            // 循环开关
+            const loopSwitch = `
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" ${t.is_loop ? 'checked' : ''} onchange="toggleTaskLoop(${t.id}, this.checked)">
+            </div>`;
+
             tbody.append(`
                 <tr>
                     <td><input type="checkbox" class="task-check" value="${t.id}"></td>
                     <td>${escapeHtml(t.account_name || 'ID:'+t.account_id)}</td>
                     <td class="text-truncate" style="max-width:150px">${escapeHtml(t.subject||'-')}</td>
                     <td class="small">${next}</td>
-                    <td>${loopIcon}</td>
-                    <td class="${statusClass} fw-bold">${t.status}</td>
-                    <td><button class="btn btn-sm btn-light text-danger" onclick="delTask(${t.id})"><i class="fas fa-trash"></i></button></td>
+                    <td>${loopSwitch}</td>
+                    <td class="${statusClass} fw-bold">
+                        ${t.status}
+                        ${countsDisplay}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary py-0" title="执行" onclick="manualRun(${t.id})"><i class="fas fa-play"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary py-0" title="编辑" onclick="editTask(${t.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-outline-danger py-0" title="删除" onclick="delTask(${t.id})"><i class="fas fa-trash"></i></button>
+                    </td>
                 </tr>
             `);
         });
     });
 }
 
+function toggleTaskLoop(id, isLoop) {
+    const task = cachedTasks.find(t => t.id === id);
+    if (!task) return;
+    
+    // 这里复用 PUT 接口更新 is_loop 状态
+    const data = { ...task, is_loop: isLoop };
+    fetch(`${API_BASE}/tasks`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) })
+        .then(r => r.json()).then(res => {
+            if(res.ok) { 
+                showToast("循环状态已更新"); 
+                task.is_loop = isLoop; // 更新本地缓存
+            } else { 
+                showToast("更新失败: " + res.error); 
+                loadTasks(); // 失败还原
+            }
+        });
+}
+
 function saveTask() {
-    const delay = $("#delay-config").val(); // 1|0|0|0
+    const id = $("#edit-task-id").val();
+    
+    // 验证账号是否存在
+    const accId = getSelectedAccountId();
+    if(!accId) return alert("没有些号！");
+
+    const delay = $("#delay-config").val(); 
+    const localDateStr = $("#date-a").val();
+    let utcDateStr = "";
+    if (localDateStr) {
+        utcDateStr = new Date(localDateStr).toISOString();
+    }
+
     const data = {
-        account_id: $("#send-from").val(),
+        account_id: accId, // 使用获取到的 ID
         to_email: $("#send-to").val(),
-        // 如果为空则默认主题为 Remind
         subject: $("#send-subject").val() || "Remind",
-        // 如果为空则默认内容为 Reminder... + 国际标准时间
         content: $("#send-content").val() || ("Reminder of current time: " + new Date().toISOString()),
         is_loop: $("#loop-switch").is(":checked"),
         delay_config: delay,
-        base_date: $("#date-a").val() // 2023-01-01T12:00
+        base_date: utcDateStr
     };
 
-    if(!data.account_id || !data.to_email) return showToast("请补全信息");
+    if(!data.to_email) return showToast("请补全收件人");
+    if(id) data.id = id;
 
-    fetch(`${API_BASE}/tasks`, { method:'POST', headers: getHeaders(), body: JSON.stringify(data) })
+    const method = id ? 'PUT' : 'POST';
+
+    fetch(`${API_BASE}/tasks`, { method: method, headers: getHeaders(), body: JSON.stringify(data) })
     .then(r => r.json()).then(res => {
-        if(res.ok) { showToast("已加入队列"); loadTasks(); }
+        if(res.ok) { 
+            showToast(id ? "任务已更新" : "已加入队列"); 
+            if(id) cancelEditTask(); 
+            loadTasks(); 
+        }
         else alert("失败: " + res.error);
     });
 }
 
+function editTask(id) {
+    const task = cachedTasks.find(t => t.id == id);
+    if(!task) return;
+    
+    $("#edit-task-id").val(task.id);
+    // 回显账号名称而不是ID
+    $("#send-from").val(task.account_name || '');
+    
+    $("#send-to").val(task.to_email);
+    $("#send-subject").val(task.subject);
+    $("#send-content").val(task.content);
+    
+    if (task.base_date) {
+        const dateObj = new Date(task.base_date);
+        if (!isNaN(dateObj.getTime())) {
+            $("#date-a").val(toLocalISOString(dateObj));
+        } else {
+            $("#date-a").val("");
+        }
+    } else {
+        $("#date-a").val("");
+    }
+
+    $("#delay-config").val(task.delay_config);
+    $("#loop-switch").prop("checked", !!task.is_loop);
+    
+    $("#task-card-title").text("编辑任务 (ID: " + id + ")");
+    $("#btn-save-task").html('<i class="fas fa-save"></i> 更新任务');
+    $("#btn-cancel-edit").removeClass("d-none");
+    
+    if(!$("#section-send").hasClass("active")) showSection('section-send');
+}
+
+function cancelEditTask() {
+    $("#edit-task-id").val("");
+    $("#task-card-title").text("创建任务 / 立即发送");
+    $("#btn-save-task").html('<i class="fas fa-clock"></i> 添加任务');
+    $("#btn-cancel-edit").addClass("d-none");
+    
+    $("#send-from").val(""); // 清空输入框
+    $("#send-to").val("");
+    $("#send-subject").val("");
+    $("#send-content").val("");
+    $("#date-a").val("");
+    $("#delay-config").val("");
+    $("#loop-switch").prop("checked", false);
+}
+
+function manualRun(id) {
+    if(!confirm("立即执行?")) return;
+    // 使用 PUT 方法传递 action: 'execute'，与 Gmail 版逻辑一致
+    fetch(`${API_BASE}/tasks`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ id: id, action: 'execute' }) })
+        .then(r=>r.json()).then(res=>{
+        if(res.ok) { showToast("执行成功"); loadTasks(); }
+        else showToast("失败: "+res.error);
+    });
+}
+
 function sendNow() {
+    const accId = getSelectedAccountId();
+    if(!accId) return alert("没有些号！");
+
     const btn = $(event.target);
     const org = btn.html();
     btn.html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
     
     const data = {
-        account_id: $("#send-from").val(),
+        account_id: accId,
         to_email: $("#send-to").val(),
         subject: $("#send-subject").val() || "Remind",
         content: $("#send-content").val() || ("Reminder of current time: " + new Date().toISOString()),
