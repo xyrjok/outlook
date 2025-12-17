@@ -254,7 +254,7 @@ function loadRules() {
         tbody.empty();
         
         if(!list || list.length === 0) {
-            tbody.html('<tr><td colspan="7" class="text-center p-4 text-muted">暂无规则</td></tr>');
+            tbody.html('<tr><td colspan="8" class="text-center p-4 text-muted">暂无规则</td></tr>');
             return;
         }
 
@@ -266,18 +266,29 @@ function loadRules() {
                 ? (isExpired ? `<span class="text-danger">已过期</span>` : new Date(r.valid_until).toLocaleDateString())
                 : '<span class="text-success">永久</span>';
             
-            // 修复：将账号和别名拆分显示，并移除原来的 filters 列，以适配 7 列布局
+            // 构建匹配条件显示字符串
+            let matchInfo = [];
+            if(r.match_sender) matchInfo.push(`<span class="badge bg-light text-dark border" title="发件人">发: ${escapeHtml(r.match_sender)}</span>`);
+            if(r.match_receiver) matchInfo.push(`<span class="badge bg-light text-dark border" title="收件人">收: ${escapeHtml(r.match_receiver)}</span>`);
+            if(r.match_body) matchInfo.push(`<span class="badge bg-light text-dark border" title="正文关键字">文: ${escapeHtml(r.match_body)}</span>`);
+            const matchHtml = matchInfo.length ? matchInfo.join('<br>') : '<span class="text-muted small">-</span>';
+
+            // 复制完整链接内容: 别名---链接
+            const fullLinkStr = `${r.alias}---${link}`;
+            
             tbody.append(`
                 <tr>
                     <td><input type="checkbox" class="rule-check" value="${r.id}"></td>
-                    <td>${escapeHtml(r.name)}</td>
-                    <td>${escapeHtml(r.alias)}</td>
+                    <td class="text-primary" style="cursor:pointer" onclick="copyStr('${escapeHtml(r.name)}', '已复制账号名！')" title="点击复制">${escapeHtml(r.name)}</td>
+                    <td class="text-primary" style="cursor:pointer" onclick="copyStr('${escapeHtml(r.alias)}', '已复制别名！')" title="点击复制">${escapeHtml(r.alias)}</td>
                     <td>
-                        <div class="input-group input-group-sm" style="width:140px">
+                        <div class="input-group input-group-sm" style="width:160px">
                             <input class="form-control bg-white" value="${r.query_code}" readonly>
-                            <button class="btn btn-outline-secondary" onclick="window.open('${link}')"><i class="fas fa-external-link-alt"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="window.open('${link}')" title="打开链接"><i class="fas fa-external-link-alt"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="copyStr('${fullLinkStr}', '已复制完整链接！')" title="复制: 别名---链接"><i class="fas fa-copy"></i></button>
                         </div>
                     </td>
+                    <td class="small">${matchHtml}</td>
                     <td>${r.fetch_limit}</td>
                     <td>${validStr}</td>
                     <td>
@@ -304,7 +315,6 @@ function openAddRuleModal() {
     new bootstrap.Modal(document.getElementById('addRuleModal')).show();
 }
 
-// 新增：编辑规则函数
 function openEditRule(id) {
     const r = cachedRules.find(x => x.id == id);
     if(!r) return;
@@ -421,7 +431,7 @@ function processRuleImport(text) {
 function exportRules() {
     const content = cachedRules.map(r => {
         const days = r.valid_until ? Math.ceil((r.valid_until - Date.now())/86400000) : '';
-        return `${r.name}\t${r.alias}\t${r.query_code}\t${r.fetch_limit}\t${days}\t${r.match_sender||''}\t\t${r.match_body||''}`;
+        return `${r.name}\t${r.alias}\t${r.query_code}\t${r.fetch_limit}\t${days}\t${r.match_sender||''}\t${r.match_receiver||''}\t${r.match_body||''}`;
     }).join('\n');
     downloadFile(content, "rules_backup.txt");
 }
@@ -685,6 +695,12 @@ function copyAccountInfo(id, type) {
     if(text) {
         navigator.clipboard.writeText(text).then(() => showToast("已复制！")).catch(()=>showToast("复制失败"));
     }
+}
+
+// 通用复制函数
+function copyStr(str, msg) {
+    if(!str) return;
+    navigator.clipboard.writeText(str).then(() => showToast(msg || "已复制！")).catch(()=>showToast("复制失败"));
 }
 
 // 鼠标位置跟踪 (用于 Toast 跟随)
