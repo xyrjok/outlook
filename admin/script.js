@@ -266,13 +266,12 @@ function loadRules() {
                 ? (isExpired ? `<span class="text-danger">已过期</span>` : new Date(r.valid_until).toLocaleDateString())
                 : '<span class="text-success">永久</span>';
             
-            // 过滤条件概览
-            const filters = [r.match_sender ? `发:${r.match_sender}`:null, r.match_body ? `文:${r.match_body}`:null].filter(x=>x).join('; ');
-
+            // 修复：将账号和别名拆分显示，并移除原来的 filters 列，以适配 7 列布局
             tbody.append(`
                 <tr>
                     <td><input type="checkbox" class="rule-check" value="${r.id}"></td>
-                    <td>${escapeHtml(r.name)} <span class="text-muted small">(${escapeHtml(r.alias)})</span></td>
+                    <td>${escapeHtml(r.name)}</td>
+                    <td>${escapeHtml(r.alias)}</td>
                     <td>
                         <div class="input-group input-group-sm" style="width:140px">
                             <input class="form-control bg-white" value="${r.query_code}" readonly>
@@ -281,8 +280,8 @@ function loadRules() {
                     </td>
                     <td>${r.fetch_limit}</td>
                     <td>${validStr}</td>
-                    <td class="small text-muted">${filters || '-'}</td>
                     <td>
+                        <button class="btn btn-sm btn-light text-primary" onclick="openEditRule(${r.id})"><i class="fas fa-edit"></i></button>
                         <button class="btn btn-sm btn-light text-danger" onclick="delRule(${r.id})"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
@@ -292,6 +291,7 @@ function loadRules() {
 }
 
 function openAddRuleModal() {
+    $("#ruleModalTitle").text("添加收件规则"); // 重置标题
     $("#rule-id").val("");
     $("#rule-name").val("");
     $("#rule-alias").val("");
@@ -299,7 +299,34 @@ function openAddRuleModal() {
     $("#rule-limit").val("5");
     $("#rule-valid").val("");
     $("#rule-match-sender").val("");
+    $("#rule-match-receiver").val("");
     $("#rule-match-body").val("");
+    new bootstrap.Modal(document.getElementById('addRuleModal')).show();
+}
+
+// 新增：编辑规则函数
+function openEditRule(id) {
+    const r = cachedRules.find(x => x.id == id);
+    if(!r) return;
+    
+    $("#rule-id").val(r.id);
+    $("#rule-name").val(r.name);
+    $("#rule-alias").val(r.alias);
+    $("#rule-code").val(r.query_code);
+    $("#rule-limit").val(r.fetch_limit);
+    
+    // 计算剩余天数回显
+    let days = "";
+    if(r.valid_until && r.valid_until > Date.now()) {
+        days = Math.ceil((r.valid_until - Date.now()) / 86400000);
+    }
+    $("#rule-valid").val(days);
+
+    $("#rule-match-sender").val(r.match_sender);
+    $("#rule-match-receiver").val(r.match_receiver);
+    $("#rule-match-body").val(r.match_body);
+    
+    $("#ruleModalTitle").text("编辑收件规则");
     new bootstrap.Modal(document.getElementById('addRuleModal')).show();
 }
 
@@ -320,7 +347,12 @@ function saveRule() {
 
     if(!data.name) return showToast("必须填写绑定账号名");
 
-    fetch(`${API_BASE}/rules`, { method:'POST', headers: getHeaders(), body: JSON.stringify(data) })
+    // 判断是新增还是修改
+    const id = $("#rule-id").val();
+    if(id) data.id = id;
+    const method = id ? 'PUT' : 'POST';
+
+    fetch(`${API_BASE}/rules`, { method: method, headers: getHeaders(), body: JSON.stringify(data) })
     .then(r => r.json()).then(res => {
         if(res.success) {
             bootstrap.Modal.getInstance(document.getElementById('addRuleModal')).hide();
