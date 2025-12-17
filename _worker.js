@@ -257,7 +257,7 @@ async function handleTasks(req, env) {
     const url = new URL(req.url);
     const method = req.method;
     
-    // 获取任务列表 (关联查询账号名)
+    // GET: 获取任务列表
     if (method === 'GET') {
         const { results } = await env.XYTJ_OUTLOOK.prepare(`
             SELECT t.*, a.name as account_name 
@@ -268,11 +268,22 @@ async function handleTasks(req, env) {
         return jsonResp({ data: results });
     }
 
-    // 添加任务
+    // POST: 添加任务 / 立即发送
     if (method === 'POST') {
         const d = await req.json();
         
-        // 模式: 立即发送
+        // 兼容批量添加 (数组情况)
+        if (Array.isArray(d)) {
+            for (const item of d) {
+                let nextRun = item.base_date ? new Date(item.base_date).getTime() : Date.now();
+                await env.XYTJ_OUTLOOK.prepare(
+                    "INSERT INTO send_tasks (account_id, to_email, subject, content, delay_config, is_loop, next_run_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')"
+                ).bind(item.account_id, item.to_email, item.subject, item.content, item.delay_config, item.is_loop?1:0, nextRun).run();
+            }
+            return jsonResp({ ok: true });
+        }
+
+        // 模式: 立即发送 (无ID, 纯动作, 用于"立即发送"按钮)
         if (d.immediate) {
             const acc = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM accounts WHERE id=?").bind(d.account_id).first();
             if (!acc) return jsonResp({ ok: false, error: "账号不存在" });
@@ -281,9 +292,7 @@ async function handleTasks(req, env) {
             return jsonResp({ ok: res.success, error: res.error });
         }
         
-        // 模式: 加入队列
-        // 计算下次运行时间。前端传来的 delay_config 格式如 "1|0|0|0"
-        // 首次运行：如果有 base_date 则用之，否则立即 (Date.now())
+        // 模式: 加入队列 (添加单个新任务)
         let nextRun = d.base_date ? new Date(d.base_date).getTime() : Date.now();
         
         await env.XYTJ_OUTLOOK.prepare(
@@ -293,10 +302,54 @@ async function handleTasks(req, env) {
         return jsonResp({ ok: true });
     }
 
-    // 删除任务
+    // ================= [修复的核心部分] =================
+    // PUT: 更新任务 (编辑 / 执行 / 状态修改)
+    if (method === 'PUT') {
+        const d = await req.json();
+        
+        // 场景 A: 列表中的"执行"按钮 (action: 'execute')
+        if (d.action === 'execute') {
+            const task = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM send_tasks WHERE id=?").bind(d.id).first();
+            if (!task) return jsonResp({ ok: false, error: "任务不存在" });
+
+            const acc = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM accounts WHERE id=?").bind(task.account_id).first();
+            if (!acc) return jsonResp({ ok: false, error: "账号无效" });
+
+            // 调用发信逻辑
+            const res = await sendEmailMS(env, acc, task.to_email, task.subject, task.content);
+            
+            if (res.success) {
+                // 执行成功
+                await env.XYTJ_OUTLOOK.prepare("UPDATE send_tasks SET status='success', success_count=success_count+1 WHERE id=?").bind(d.id).run();
+                return jsonResp({ ok: true });
+            } else {
+                // 执行失败
+                await env.XYTJ_OUTLOOK.prepare("UPDATE send_tasks SET status='error', fail_count=fail_count+1 WHERE id=?").bind(d.id).run();
+                return jsonResp({ ok: false, error: res.error });
+            }
+        }
+
+        // 场景 B: 编辑任务保存 或 切换循环开关
+        // 基础更新语句
+        let sql = "UPDATE send_tasks SET account_id=?, to_email=?, subject=?, content=?, delay_config=?, is_loop=? WHERE id=?";
+        let params = [d.account_id, d.to_email, d.subject, d.content, d.delay_config, d.is_loop?1:0, d.id];
+
+        // 如果前端传了 base_date (修改了时间)，则同时更新 next_run_at
+        // 注意：仅切换循环开关时 d.base_date 通常为空，此时不应重置时间
+        if (d.base_date) {
+            const newRun = new Date(d.base_date).getTime();
+            sql = "UPDATE send_tasks SET account_id=?, to_email=?, subject=?, content=?, delay_config=?, is_loop=?, next_run_at=? WHERE id=?";
+            params = [d.account_id, d.to_email, d.subject, d.content, d.delay_config, d.is_loop?1:0, newRun, d.id];
+        }
+
+        await env.XYTJ_OUTLOOK.prepare(sql).bind(...params).run();
+        return jsonResp({ ok: true });
+    }
+    // ===================================================
+
+    // DELETE: 删除任务
     if (method === 'DELETE') {
         const id = url.searchParams.get('id');
-        // 支持批量删除 ids=1,2,3
         const ids = url.searchParams.get('ids');
         if (ids) {
             const idList = ids.split(',');
