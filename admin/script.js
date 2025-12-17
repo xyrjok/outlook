@@ -88,11 +88,8 @@ function loadAccounts() {
                 const tokenMask = acc.refresh_token ? acc.refresh_token.substring(0, 8) + '...' : '';
                 configStr = `${acc.client_id}, ${secretMask}, ${tokenMask}`;
             }
-
-            const statusBadge = acc.refresh_token 
-                ? '<span class="badge bg-success">已配置</span>' 
-                : '<span class="badge bg-secondary">未配置</span>';
-
+            const isChecked = (acc.status === undefined || acc.status == 1) ? 'checked' : '';
+            const statusBadge = `<div class="form-check form-switch"><input class="form-check-input" type="checkbox" ${isChecked} onchange="updateAccountStatus(${acc.id}, this.checked)"></div>`;
             tbody.append(`
                 <tr>
                     <td><input type="checkbox" class="acc-check" value="${acc.id}"></td>
@@ -173,7 +170,15 @@ function delAccount(id) {
     fetch(`${API_BASE}/accounts?id=${id}`, { method: 'DELETE', headers: getHeaders() })
     .then(() => { showToast("已删除"); loadAccounts(); });
 }
-
+function updateAccountStatus(id, checked) {
+    const status = checked ? 1 : 0;
+    fetch(`${API_BASE}/accounts`, { 
+        method: 'PUT', headers: getHeaders(), body: JSON.stringify({ id, status }) 
+    }).then(r => r.json()).then(res => {
+        if(res.ok) showToast(checked ? "已启用" : "已禁用");
+        else { showToast("修改失败"); loadAccounts(); }
+    });
+}
 function batchDelAccounts() {
     const ids = $(".acc-check:checked").map((_,el) => el.value).get(); // 获取所有选中ID
     if(ids.length === 0) return showToast("请先勾选");
