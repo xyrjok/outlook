@@ -600,7 +600,7 @@ function filterInboxAccounts(val) {
 }
 
 // 添加全局变量
-let currentLimit = 10;
+let currentLimit = 2;
 
 // 添加切换函数
 function setLimit(n) {
@@ -638,7 +638,7 @@ function viewInbox(id, name, el) {
                     <div class="card-body p-3">
                         <h6 class="card-title text-primary">${escapeHtml(m.subject||'(无主题)')}</h6>
                         <h6 class="card-subtitle mb-2 text-muted small">${escapeHtml(m.sender)} | ${new Date(m.received_at).toLocaleString()}</h6>
-                        <p class="card-text small bg-light p-2 rounded" style="white-space: pre-wrap;">${escapeHtml(m.body)}</p>
+                        <div class="card-text small bg-light p-2 rounded overflow-auto">${m.htmlContent}</div>
                     </div>
                 </div>
             `;
