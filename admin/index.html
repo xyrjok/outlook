@@ -169,6 +169,10 @@
                         <div class="card shadow-sm">
                             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                                 <span>任务队列</span>
+                                <div class="input-group input-group-sm mx-2" style="width: 250px;">
+                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                    <input type="text" class="form-control" placeholder="搜主题/收件人/发件箱..." onkeyup="filterTasks(this.value)">
+                                </div>
                                 <div>
                                     <button class="btn btn-sm btn-outline-secondary me-1" onclick="loadTasks()"><i class="fas fa-sync-alt"></i> 刷新</button>
                                     <button class="btn btn-sm btn-outline-primary me-1" onclick="openBatchTaskModal()"><i class="fas fa-file-upload"></i> 批量添加</button>
