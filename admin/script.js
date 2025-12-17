@@ -436,8 +436,10 @@ function saveTask() {
     const data = {
         account_id: $("#send-from").val(),
         to_email: $("#send-to").val(),
-        subject: $("#send-subject").val(),
-        content: $("#send-content").val(),
+        // 如果为空则默认主题为 Remind
+        subject: $("#send-subject").val() || "Remind",
+        // 如果为空则默认内容为 Reminder... + 国际标准时间
+        content: $("#send-content").val() || ("Reminder of current time: " + new Date().toISOString()),
         is_loop: $("#loop-switch").is(":checked"),
         delay_config: delay,
         base_date: $("#date-a").val() // 2023-01-01T12:00
@@ -460,8 +462,8 @@ function sendNow() {
     const data = {
         account_id: $("#send-from").val(),
         to_email: $("#send-to").val(),
-        subject: $("#send-subject").val(),
-        content: $("#send-content").val(),
+        subject: $("#send-subject").val() || "Remind",
+        content: $("#send-content").val() || ("Reminder of current time: " + new Date().toISOString()),
         immediate: true
     };
     
