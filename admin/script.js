@@ -97,7 +97,7 @@ function loadAccounts() {
                 <tr>
                     <td><input type="checkbox" class="acc-check" value="${acc.id}"></td>
                     <td class="fw-bold text-primary cursor-pointer" onclick="openEditAccount(${acc.id})">${escapeHtml(acc.name)}</td>
-                    <td style="cursor:pointer" onclick="copyAccountInfo(${acc.id}, 'email')" title="点击复制">${escapeHtml(acc.email||'-')}</td>
+                    <td style="cursor:pointer; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" onclick="copyAccountInfo(${acc.id}, 'email')" title="点击复制: ${escapeHtml(acc.email||'-')}">${escapeHtml(acc.email||'-')}</td>
                     <td class="api-config-cell" style="cursor:pointer" onclick="copyAccountInfo(${acc.id}, 'creds')" title="点击复制凭据">${configStr}</td>
                     <td>${statusBadge}</td>
                     <td>
