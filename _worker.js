@@ -318,9 +318,13 @@ async function handleTasks(req, env) {
             // 调用发信逻辑
             const res = await sendEmailMS(env, acc, task.to_email, task.subject, task.content);
             
-            if (res.success) {
-                // 执行成功
-                await env.XYTJ_OUTLOOK.prepare("UPDATE send_tasks SET status='success', success_count=success_count+1 WHERE id=?").bind(d.id).run();
+            // === [修改] 手动执行仅作为测试，循环任务不更新时间和状态，只增加成功计数 ===
+                if (task.is_loop) {
+                    await env.XYTJ_OUTLOOK.prepare("UPDATE send_tasks SET success_count=success_count+1 WHERE id=?").bind(d.id).run();
+                } else {
+                    // 非循环任务，执行成功后标记为完成
+                    await env.XYTJ_OUTLOOK.prepare("UPDATE send_tasks SET status='success', success_count=success_count+1 WHERE id=?").bind(d.id).run();
+                }
                 return jsonResp({ ok: true });
             } else {
                 // 执行失败
