@@ -127,7 +127,8 @@
                             <div class="card-body">
                                 <input type="hidden" id="edit-task-id">
                                 <label class="form-label text-muted small">发件邮箱</label>
-                                <select class="form-control mb-2" id="send-from"></select>
+                                <input class="form-control mb-2" list="account-list-options" id="send-from" placeholder="输入名称或点击选择...">
+                                <datalist id="account-list-options"></datalist>
                                 
                                 <label class="form-label text-muted small">收件人</label>
                                 <input type="text" class="form-control mb-2" id="send-to" placeholder="user@example.com">
