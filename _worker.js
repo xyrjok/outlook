@@ -229,6 +229,10 @@ async function handleAccounts(req, env) {
     // 更新
     if (method === 'PUT') {
         const d = await req.json();
+        if (d.status !== undefined && d.name === undefined) {
+            await env.XYTJ_OUTLOOK.prepare("UPDATE accounts SET status=? WHERE id=?").bind(d.status, d.id).run();
+            return jsonResp({ ok: true });
+        }
         await env.XYTJ_OUTLOOK.prepare(
             "UPDATE accounts SET name=?, email=?, client_id=?, client_secret=?, refresh_token=? WHERE id=?"
         ).bind(d.name, d.email, d.client_id, d.client_secret, d.refresh_token, d.id).run();
