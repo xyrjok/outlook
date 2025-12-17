@@ -318,7 +318,8 @@ async function handleTasks(req, env) {
             // 调用发信逻辑
             const res = await sendEmailMS(env, acc, task.to_email, task.subject, task.content);
             
-            // === [修改] 手动执行仅作为测试，循环任务不更新时间和状态，只增加成功计数 ===
+            // === [修复：增加判断逻辑] ===
+            if (res.success) {
                 if (task.is_loop) {
                     await env.XYTJ_OUTLOOK.prepare("UPDATE send_tasks SET success_count=success_count+1 WHERE id=?").bind(d.id).run();
                 } else {
