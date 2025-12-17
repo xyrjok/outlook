@@ -435,11 +435,20 @@ async function processScheduledTasks(env) {
 
         // 处理循环逻辑
         if (task.is_loop) {
-            // 解析 delay_config (格式: 天|时|分|秒，例如 1|0|0|0)
+            // 解析 delay_config (格式: 天|时|分|秒，支持 2-36 这种随机范围)
             let addMs = 86400000; // 默认 1 天
             if (task.delay_config && task.delay_config.includes('|')) {
-                const parts = task.delay_config.split('|').map(Number);
-                addMs = (parts[0]*86400000) + (parts[1]*3600000) + (parts[2]*60000) + (parts[3]*1000);
+                // 辅助函数：如果是 "2-36" 则返回区间随机数，否则返回数字
+                const getVal = (s) => {
+                    if (s && s.includes('-')) {
+                        const [min, max] = s.split('-').map(Number);
+                        return Math.floor(Math.random() * (max - min + 1)) + min;
+                    }
+                    return Number(s) || 0;
+                };
+                
+                const parts = task.delay_config.split('|');
+                addMs = (getVal(parts[0])*86400000) + (getVal(parts[1])*3600000) + (getVal(parts[2])*60000) + (getVal(parts[3])*1000);
             }
             if (addMs <= 0) addMs = 60000; // 防止死循环
 
