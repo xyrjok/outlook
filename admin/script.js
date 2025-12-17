@@ -585,6 +585,7 @@ function renderInboxList(list) {
     const el = $("#inbox-account-list");
     el.empty();
     list.forEach(acc => {
+        if (acc.status != null && acc.status == 0) return;
         el.append(`
             <a href="#" class="list-group-item list-group-item-action" onclick="viewInbox(${acc.id}, '${escapeHtml(acc.name)}', this)">
                 <div class="d-flex w-100 justify-content-between">
