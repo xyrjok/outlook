@@ -390,6 +390,15 @@ async function handlePublicQuery(code, env) {
         // 4. 抓取邮件
         let emails = await syncEmailsMS(env, acc.id, fetchNum);
         
+        // [新增] 预处理：生成与最终显示一致的文本用于搜索 (解决“所见即所搜”问题)
+        emails.forEach(e => {
+            let content = e.htmlContent || e.body || "";
+            // 复用显示时的逻辑：处理链接格式、去标签、清理空格
+            content = content.replace(/<a[^>]+href=["'](.*?)["'][^>]*>(.*?)<\/a>/gi, '$2 ($1)');
+            content = content.replace(/<[^>]+>/g, '');
+            e.displayText = content.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+        });
+        
         // 5. 过滤
         if (rule.match_sender) {
             emails = emails.filter(e => e.sender.toLowerCase().includes(rule.match_sender.toLowerCase()));
@@ -405,7 +414,8 @@ async function handlePublicQuery(code, env) {
             const keywords = rule.match_body.split('|').map(k => k.trim()).filter(v => v);
             if (keywords.length > 0) {
                 emails = emails.filter(e => {
-                    const body = (e.body || "").toLowerCase();
+                    // [修改] 这里改为搜索 e.displayText (处理后的文本)
+                    const body = (e.displayText || "").toLowerCase();
                     // 只要包含任意一个关键字即匹配
                     return keywords.some(k => body.includes(k.toLowerCase()));
                 });
@@ -421,17 +431,8 @@ async function handlePublicQuery(code, env) {
         const text = emails.map(e => {
             const timeStr = new Date(e.received_at).toLocaleString('zh-CN', {timeZone:'Asia/Shanghai'});
             
-            // 优先处理 HTML 内容以提取链接
-            let content = e.htmlContent || e.body || "";
-            // 1. 将 <a href="...">text</a> 替换为 "text (链接)"
-            content = content.replace(/<a[^>]+href=["'](.*?)["'][^>]*>(.*?)<\/a>/gi, '$2 ($1)');
-            // 2. 去除所有 HTML 标签
-            content = content.replace(/<[^>]+>/g, '');
-            // 3. 处理实体符和多余空格
-            content = content.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-
-            // 格式：日期 | 正文 (去掉主题)
-            return `${timeStr} | ${content}`;
+            // [修改] 直接使用上面生成的 displayText，删除原来重复的处理逻辑
+            return `${timeStr} | ${e.displayText}`;
         }).join('\n\n');
         return new Response(text, { headers: {"Content-Type": "text/plain;charset=UTF-8"} });
 
