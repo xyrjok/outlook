@@ -163,9 +163,9 @@ async function syncEmailsMS(env, accountId, limit = 10) {
     const token = await getAccessToken(env, account);
     
     // 查询参数: $top=限制数量, $select=只取需要的字段, $orderby=时间倒序
-    // 修改：并行抓取收件箱和垃圾箱
-    const urlInbox = `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$top=${limit}&$select=subject,from,bodyPreview,receivedDateTime,body&$orderby=receivedDateTime DESC`;
-    const urlJunk = `https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?$top=${limit}&$select=subject,from,bodyPreview,receivedDateTime,body&$orderby=receivedDateTime DESC`;
+    // 修改：增加 toRecipients 以便支持收件人匹配
+    const urlInbox = `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$top=${limit}&$select=subject,from,toRecipients,bodyPreview,receivedDateTime,body&$orderby=receivedDateTime DESC`;
+    const urlJunk = `https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?$top=${limit}&$select=subject,from,toRecipients,bodyPreview,receivedDateTime,body&$orderby=receivedDateTime DESC`;
 
     const [r1, r2] = await Promise.all([
         fetch(urlInbox, { headers: { "Authorization": `Bearer ${token}` } }),
@@ -186,7 +186,9 @@ async function syncEmailsMS(env, accountId, limit = 10) {
         subject: m.subject,
         // 微软格式: from: { emailAddress: { name, address } }
         sender: `${m.from?.emailAddress?.name || ''} <${m.from?.emailAddress?.address || ''}>`,
-        // 新增：获取 HTML 原文用于后续提取链接
+        // 提取收件人 (支持多个)
+        receiver: (m.toRecipients || []).map(r => r.emailAddress?.address).join(', '),
+        // 获取 HTML 原文用于后续提取链接
         htmlContent: m.body?.content || '',
         // bodyPreview 是纯文本预览，body.content 是 HTML
         body: m.bodyPreview || '(No Preview)',
@@ -329,9 +331,10 @@ async function handleRules(req, env) {
     }
     if (method === 'PUT') {
         const d = await req.json();
+        // 修改：增加 match_receiver
         await env.XYTJ_OUTLOOK.prepare(
-            "UPDATE access_rules SET name=?, alias=?, query_code=?, fetch_limit=?, valid_until=?, match_sender=?, match_body=? WHERE id=?"
-        ).bind(d.name, d.alias, d.query_code, d.fetch_limit, d.valid_until, d.match_sender, d.match_body, d.id).run();
+            "UPDATE access_rules SET name=?, alias=?, query_code=?, fetch_limit=?, valid_until=?, match_sender=?, match_receiver=?, match_body=? WHERE id=?"
+        ).bind(d.name, d.alias, d.query_code, d.fetch_limit, d.valid_until, d.match_sender, d.match_receiver, d.match_body, d.id).run();
         return jsonResp({ success: true });
     }
     
@@ -340,9 +343,10 @@ async function handleRules(req, env) {
         // 如果没有query_code则生成随机码
         const code = d.query_code || Math.random().toString(36).substring(2, 12).toUpperCase();
         
+        // 修改：增加 match_receiver
         await env.XYTJ_OUTLOOK.prepare(
-            "INSERT INTO access_rules (name, alias, query_code, fetch_limit, valid_until, match_sender, match_body) VALUES (?, ?, ?, ?, ?, ?, ?)"
-        ).bind(d.name, d.alias, code, d.fetch_limit, d.valid_until, d.match_sender, d.match_body).run();
+            "INSERT INTO access_rules (name, alias, query_code, fetch_limit, valid_until, match_sender, match_receiver, match_body) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        ).bind(d.name, d.alias, code, d.fetch_limit, d.valid_until, d.match_sender, d.match_receiver, d.match_body).run();
         return jsonResp({ success: true });
     }
     
@@ -390,8 +394,22 @@ async function handlePublicQuery(code, env) {
         if (rule.match_sender) {
             emails = emails.filter(e => e.sender.toLowerCase().includes(rule.match_sender.toLowerCase()));
         }
+        
+        // 增加收件人过滤
+        if (rule.match_receiver) {
+             emails = emails.filter(e => (e.receiver || "").toLowerCase().includes(rule.match_receiver.toLowerCase()));
+        }
+        
         if (rule.match_body) {
-            emails = emails.filter(e => e.body.toLowerCase().includes(rule.match_body.toLowerCase()));
+            // 支持多关键字 | 分隔 (自动处理为精确短语匹配)
+            const keywords = rule.match_body.split('|').map(k => k.trim()).filter(v => v);
+            if (keywords.length > 0) {
+                emails = emails.filter(e => {
+                    const body = (e.body || "").toLowerCase();
+                    // 只要包含任意一个关键字即匹配
+                    return keywords.some(k => body.includes(k.toLowerCase()));
+                });
+            }
         }
         
         // 6. 截取显示数量
