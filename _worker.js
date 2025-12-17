@@ -327,6 +327,13 @@ async function handleRules(req, env) {
         const { results } = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM access_rules ORDER BY id DESC").all();
         return jsonResp(results);
     }
+    if (method === 'PUT') {
+        const d = await req.json();
+        await env.XYTJ_OUTLOOK.prepare(
+            "UPDATE access_rules SET name=?, alias=?, query_code=?, fetch_limit=?, valid_until=?, match_sender=?, match_body=? WHERE id=?"
+        ).bind(d.name, d.alias, d.query_code, d.fetch_limit, d.valid_until, d.match_sender, d.match_body, d.id).run();
+        return jsonResp({ success: true });
+    }
     
     if (method === 'POST') {
         const d = await req.json();
