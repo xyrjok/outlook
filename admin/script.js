@@ -97,8 +97,8 @@ function loadAccounts() {
                 <tr>
                     <td><input type="checkbox" class="acc-check" value="${acc.id}"></td>
                     <td class="fw-bold text-primary cursor-pointer" onclick="openEditAccount(${acc.id})">${escapeHtml(acc.name)}</td>
-                    <td>${escapeHtml(acc.email||'-')}</td>
-                    <td class="api-config-cell" title="点击编辑查看">${configStr}</td>
+                    <td style="cursor:pointer" onclick="copyAccountInfo(${acc.id}, 'email')" title="点击复制">${escapeHtml(acc.email||'-')}</td>
+                    <td class="api-config-cell" style="cursor:pointer" onclick="copyAccountInfo(${acc.id}, 'creds')" title="点击复制凭据">${configStr}</td>
                     <td>${statusBadge}</td>
                     <td>
                         <button class="btn btn-sm btn-light text-primary" onclick="openEditAccount(${acc.id})"><i class="fas fa-edit"></i></button>
@@ -640,6 +640,19 @@ function downloadFile(content, filename) {
 
 function showToast(msg) {
     $("#mouse-toast").text(msg).fadeIn().delay(2000).fadeOut();
+}
+
+// 新增：点击复制账号信息
+function copyAccountInfo(id, type) {
+    const acc = cachedAccounts.find(a => a.id == id);
+    if(!acc) return;
+    let text = "";
+    if(type === 'email') text = acc.email;
+    if(type === 'creds') text = `${acc.client_id || ''}, ${acc.client_secret || ''}, ${acc.refresh_token || ''}`;
+    
+    if(text) {
+        navigator.clipboard.writeText(text).then(() => showToast("已复制！")).catch(()=>showToast("复制失败"));
+    }
 }
 
 // 鼠标位置跟踪 (用于 Toast 跟随)
