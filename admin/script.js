@@ -668,6 +668,8 @@ function viewInbox(id, name, el) {
                 } catch(e) { console.error("Shadow DOM error:", e); }
             }
         });
+    });
+}    
 
 // ================== 通用工具 ==================
 
