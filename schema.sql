@@ -38,5 +38,6 @@ CREATE TABLE IF NOT EXISTS access_rules (
     valid_until     INTEGER,
     match_sender    TEXT,
     match_body      TEXT,
-    created_at      INTEGER DEFAULT (strftime('%s', 'now'))
+    created_at      INTEGER DEFAULT (strftime('%s', 'now')),
+    match_receiver  TEXT
 );
