@@ -638,21 +638,36 @@ function viewInbox(id, name, el) {
         
         let html = `<div class="p-3 border-bottom d-flex justify-content-between bg-light"><strong>${escapeHtml(name)}</strong> <small>最新10封</small></div><div class="p-3" style="overflow-y:auto">`;
         
-        res.forEach(m => {
+        res.forEach((m, index) => {
             html += `
                 <div class="card mb-3 shadow-sm border-0">
                     <div class="card-body p-3">
                         <h6 class="card-title text-primary">${escapeHtml(m.subject||'(无主题)')}</h6>
                         <h6 class="card-subtitle mb-2 text-muted small">${escapeHtml(m.sender)} | ${new Date(m.received_at).toLocaleString()}</h6>
-                        <div class="card-text small bg-light p-2 rounded overflow-auto">${m.htmlContent}</div>
+                        <div id="email-shadow-host-${index}" class="card-text small bg-light p-2 rounded overflow-auto" style="min-height:50px;"></div>
                     </div>
                 </div>
             `;
         });
         html += '</div>';
         box.html(html);
-    });
-}
+        res.forEach((m, index) => {
+            const host = document.getElementById(`email-shadow-host-${index}`);
+            if (host) {
+                try {
+                    const shadow = host.attachShadow({mode: 'open'});
+                    shadow.innerHTML = `
+                        <style>
+                            :host { display: block; font-family: -apple-system, sans-serif; }
+                            img { max-width: 100%; height: auto; }
+                            p { margin: 0 0 10px 0; }
+                            body { background-color: transparent; margin: 0; color: #333; }
+                        </style>
+                        ${m.htmlContent || m.body}
+                    `;
+                } catch(e) { console.error("Shadow DOM error:", e); }
+            }
+        });
 
 // ================== 通用工具 ==================
 
