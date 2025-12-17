@@ -656,7 +656,10 @@ function filterAccounts(val) {
 function filterRules(val) {
     const k = val.toLowerCase();
     $("#rule-list-body tr").each(function() {
-        $(this).toggle($(this).text().toLowerCase().includes(k));
+        let content = $(this).text().toLowerCase();
+        $(this).find('input').each(function() { content += " " + $(this).val().toLowerCase(); });
+        
+        $(this).toggle(content.includes(k));
     });
 }
 
