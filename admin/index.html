@@ -88,9 +88,9 @@
                             <button class="btn btn-sm btn-primary" onclick="openAddRuleModal()"><i class="fas fa-plus"></i> 添加规则</button>
                             <button class="btn btn-sm btn-danger" onclick="batchDelRules()"><i class="fas fa-trash"></i> 批量删除</button>
                             
-                            <div class="input-group input-group-sm ms-2" style="width: 200px;">
+                            <div class="input-group input-group-sm ms-2" style="width: 250px;">
                                 <span class="input-group-text"><i class="fas fa-search"></i></span>
-                                <input type="text" class="form-control" placeholder="搜索名称/查询码..." onkeyup="filterRules(this.value)">
+                                <input type="text" class="form-control" placeholder="搜索名称/别名/查询码..." onkeyup="filterRules(this.value)">
                             </div>
 
                             <div class="ms-auto">
@@ -106,6 +106,7 @@
                                     <th>账号名称</th>
                                     <th>显示别名</th>
                                     <th>查询码 (点击访问)</th>
+                                    <th>匹配条件 (发/收/文)</th>
                                     <th>抓取数</th>
                                     <th>有效期</th>
                                     <th>操作</th>
