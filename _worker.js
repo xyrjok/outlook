@@ -367,9 +367,17 @@ async function handlePublicQuery(code, env) {
     const acc = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM accounts WHERE name=?").bind(rule.name).first();
     if (!acc) return new Response("未找到对应的账号配置 (Account Not Found)", {status: 404, headers: {"Content-Type": "text/plain;charset=UTF-8"}});
 
+    // 解析 fetch_limit (支持 "抓取数-显示数" 格式，如 "5-3"；若为单数则两者一致)
+    let fetchNum = 20, showNum = 5;
+    if (rule.fetch_limit) {
+        const parts = String(rule.fetch_limit).split('-');
+        fetchNum = parseInt(parts[0]) || 20;
+        showNum = parts.length > 1 ? (parseInt(parts[1]) || fetchNum) : fetchNum;
+    }
+
     try {
-        // 4. 抓取邮件 (抓取 20 条用于过滤)
-        let emails = await syncEmailsMS(env, acc.id, 20);
+        // 4. 抓取邮件
+        let emails = await syncEmailsMS(env, acc.id, fetchNum);
         
         // 5. 过滤
         if (rule.match_sender) {
@@ -380,8 +388,7 @@ async function handlePublicQuery(code, env) {
         }
         
         // 6. 截取显示数量
-        const limit = parseInt(rule.fetch_limit) || 5;
-        emails = emails.slice(0, limit);
+        emails = emails.slice(0, showNum);
 
         // 7. 格式化输出 (纯文本)
         if (emails.length === 0) return new Response("暂无符合条件的邮件", {headers: {"Content-Type": "text/plain;charset=UTF-8"}});
