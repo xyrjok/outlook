@@ -163,23 +163,33 @@ async function syncEmailsMS(env, accountId, limit = 10) {
     const token = await getAccessToken(env, account);
     
     // 查询参数: $top=限制数量, $select=只取需要的字段, $orderby=时间倒序
-    const url = `https://graph.microsoft.com/v1.0/me/messages?$top=${limit}&$select=subject,from,bodyPreview,receivedDateTime,body&$orderby=receivedDateTime DESC`;
-    
-    const resp = await fetch(url, { 
-        headers: { "Authorization": `Bearer ${token}` } 
-    });
-    
-    const data = await resp.json();
-    if (data.error) throw new Error(JSON.stringify(data.error));
-    
+    // 修改：并行抓取收件箱和垃圾箱
+    const urlInbox = `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$top=${limit}&$select=subject,from,bodyPreview,receivedDateTime,body&$orderby=receivedDateTime DESC`;
+    const urlJunk = `https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?$top=${limit}&$select=subject,from,bodyPreview,receivedDateTime,body&$orderby=receivedDateTime DESC`;
+
+    const [r1, r2] = await Promise.all([
+        fetch(urlInbox, { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch(urlJunk, { headers: { "Authorization": `Bearer ${token}` } })
+    ]);
+
+    const d1 = await r1.json();
+    const d2 = await r2.json();
+    if (d1.error || d2.error) throw new Error(JSON.stringify(d1.error || d2.error));
+
+    // 合并并按时间倒序
+    let list = [...(d1.value || []), ...(d2.value || [])];
+    list.sort((a, b) => new Date(b.receivedDateTime) - new Date(a.receivedDateTime));
+
     // 格式化返回数据
-    return (data.value || []).map(m => ({
+    return list.slice(0, limit).map(m => ({
         id: m.id,
         subject: m.subject,
         // 微软格式: from: { emailAddress: { name, address } }
         sender: `${m.from?.emailAddress?.name || ''} <${m.from?.emailAddress?.address || ''}>`,
+        // 新增：获取 HTML 原文用于后续提取链接
+        htmlContent: m.body?.content || '',
         // bodyPreview 是纯文本预览，body.content 是 HTML
-        body: m.bodyPreview || '(No Preview)', 
+        body: m.bodyPreview || '(No Preview)',
         received_at: m.receivedDateTime
     }));
 }
@@ -378,11 +388,19 @@ async function handlePublicQuery(code, env) {
 
         const text = emails.map(e => {
             const timeStr = new Date(e.received_at).toLocaleString('zh-CN', {timeZone:'Asia/Shanghai'});
-            // 简单处理 body 中的换行，避免输出过长
-            const cleanBody = e.body.replace(/\s+/g, ' ').substring(0, 200); 
-            return `${timeStr} | ${e.subject} | ${cleanBody}`;
-        }).join('\n\n');
+            
+            // 优先处理 HTML 内容以提取链接
+            let content = e.htmlContent || e.body || "";
+            // 1. 将 <a href="...">text</a> 替换为 "text (链接)"
+            content = content.replace(/<a[^>]+href=["'](.*?)["'][^>]*>(.*?)<\/a>/gi, '$2 ($1)');
+            // 2. 去除所有 HTML 标签
+            content = content.replace(/<[^>]+>/g, '');
+            // 3. 处理实体符和多余空格
+            content = content.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
+            // 格式：日期 | 正文 (去掉主题)
+            return `${timeStr} | ${content}`;
+        }).join('\n\n');
         return new Response(text, { headers: {"Content-Type": "text/plain;charset=UTF-8"} });
 
     } catch(e) {
