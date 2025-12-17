@@ -586,7 +586,7 @@ function renderInboxList(list) {
                     <h6 class="mb-1 text-truncate">${escapeHtml(acc.name)}</h6>
                     <small><i class="fas fa-chevron-right"></i></small>
                 </div>
-                <small class="text-muted">${escapeHtml(acc.email||'')}</small>
+                <small class="text-muted d-block text-truncate" title="${escapeHtml(acc.email||'')}">${escapeHtml(acc.email||'')}</small>
             </a>
         `);
     });
