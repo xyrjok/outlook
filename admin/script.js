@@ -139,8 +139,8 @@ function openEditAccount(id) {
 
 function saveAccount() {
     const rawConfig = $("#acc-api-config").val().trim();
-    // 解析逗号分隔: ID, Secret, Token
-    const parts = rawConfig.split(/[,，]/).map(s => s.trim());
+    // 解析分隔符: 英文逗号、中文逗号、竖线
+    const parts = rawConfig.split(/[,，|]/).map(s => s.trim());
     
     const data = {
         id: $("#acc-id").val() || undefined,
@@ -211,7 +211,8 @@ function processAccountImport(text) {
         const json = lines.map(line => {
             // 格式: 名称 \t 邮箱 \t ID,Secret,Token
             const p = line.split('\t').map(s => s.trim());
-            const creds = (p[2] || "").split(/[,，]/).map(s => s.trim());
+            // 支持 英文逗号、中文逗号、竖线 分隔
+            const creds = (p[2] || "").split(/[,，|]/).map(s => s.trim());
             return {
                 name: p[0],
                 email: p[1] || "",
