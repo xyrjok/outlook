@@ -557,9 +557,9 @@ async function handlePublicQuery(code, env) {
             const timeStr = new Date(e.received_at).toLocaleString('zh-CN', {timeZone:'Asia/Shanghai'});
             
             // [修改] 直接使用上面生成的 displayText，删除原来重复的处理逻辑
-            return `<div style="margin-bottom: 15px; border-bottom: 1px dashed #eee; padding-bottom: 10px;">${timeStr} | ${e.displayText}</div>`;
+            return `<div style="padding-bottom: 10px;">${timeStr} | ${e.displayText}</div>`;
         }).join('');
-        const html = `<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><body style="font-size: 16px; font-family: sans-serif; line-height: 1.5; padding: 10px; color: #000; background: #fff;">${text}</body>`;
+        const html = `<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><body style="font-size: 16px; font-family: sans-serif; line-height: 1.3; color: #000; background: #fff;">${text}</body>`;
         return new Response(html, { headers: {"Content-Type": "text/html;charset=UTF-8"} });
     } catch(e) {
         return new Response("查询出错: " + e.message, {status: 500, headers: {"Content-Type": "text/plain;charset=UTF-8"}});
