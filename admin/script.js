@@ -271,6 +271,10 @@ function loadRules() {
             const link = `${host}/${r.query_code}`;
             const isExpired = r.valid_until && Date.now() > r.valid_until;
             
+            // [新增] 找到对应的邮箱，并准备“藏”起来
+            const acc = cachedAccounts.find(a => a.name === r.name);
+            const hiddenEmail = acc ? escapeHtml(acc.email) : "";
+
             let validStr = '<span class="text-success">永久</span>';
             if (r.valid_until) {
                 if (isExpired) {
@@ -285,7 +289,6 @@ function loadRules() {
             
             // 构建匹配条件显示字符串
             let matchInfo = [];
-            // [修改] 如果有 group_id，优先显示组信息
             if(r.group_id) {
                 const group = cachedGroups.find(g => g.id == r.group_id);
                 const groupName = group ? group.name : `(ID:${r.group_id})`;
@@ -296,12 +299,11 @@ function loadRules() {
                 if(r.match_body) matchInfo.push(`<span class="badge bg-light text-dark border" title="正文关键字">文: ${escapeHtml(r.match_body)}</span>`);
             }
             const matchHtml = matchInfo.length ? matchInfo.join('<br>') : '<span class="text-muted small">-</span>';
-
-            // 复制完整链接内容: 别名---链接
             const fullLinkStr = `${r.alias}---${link}`;
             
+            // [修改] 在 <tr> 上增加了 data-email 属性，界面不显示，但代码能读到
             tbody.append(`
-                <tr>
+                <tr data-email="${hiddenEmail}">
                     <td><input type="checkbox" class="rule-check" value="${r.id}"></td>
                     <td class="text-primary" style="cursor:pointer" onclick="copyStr('${escapeHtml(r.name)}', '已复制账号名！')" title="点击复制">${escapeHtml(r.name)}</td>
                     <td class="text-primary" style="cursor:pointer" onclick="copyStr('${escapeHtml(r.alias)}', '已复制别名！')" title="点击复制">${escapeHtml(r.alias)}</td>
@@ -848,6 +850,10 @@ function filterRules(val) {
     const k = val.toLowerCase();
     $("#rule-list-body tr").each(function() {
         let content = $(this).text().toLowerCase();
+        
+        // [新增] 把藏在 data-email 里的邮箱拼接到搜索内容里
+        content += " " + ($(this).attr("data-email") || "").toLowerCase();
+
         $(this).find('input').each(function() { content += " " + $(this).val().toLowerCase(); });
         
         $(this).toggle(content.includes(k));
