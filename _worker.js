@@ -477,7 +477,15 @@ async function handlePublicQuery(code, env) {
     }
 
     // 3. 查对应账号 (通过 name 匹配)
-    const acc = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM accounts WHERE name=?").bind(rule.name).first();
+    // 【修改点：将 const 改为 let，并增加后续的模糊查找逻辑】
+    let acc = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM accounts WHERE name=?").bind(rule.name).first();
+
+    // [新增逻辑] 如果按名字没找到，尝试去邮箱地址(email字段)里模糊搜索
+    if (!acc) {
+        // 使用 LIKE 语法查找：只要 email 字段里包含规则名，就算匹配成功
+        acc = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM accounts WHERE email LIKE ?").bind(`%${rule.name}%`).first();
+    }
+
     if (!acc) return new Response("未找到对应的账号配置 (Account Not Found)", {status: 404, headers: {"Content-Type": "text/plain;charset=UTF-8"}});
 
     // 解析 fetch_limit (支持 "抓取数-显示数" 格式，如 "5-3"；若为单数则两者一致)
