@@ -989,11 +989,7 @@ function delGroup(id) {
     fetch(`${API_BASE}/groups?id=${id}`, { method: 'DELETE', headers: getHeaders() })
     .then(() => { showToast("已删除"); loadGroups(); });
 }
-// 新增：清除搜索框内容并重置列表
-function clearSearch(inputId, filterFunc) {
-    $(`#${inputId}`).val('');
-    filterFunc('');
-}
+
 // 启动
 if(localStorage.getItem("auth_token")) {
     $("#login-overlay").hide();
