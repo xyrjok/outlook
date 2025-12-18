@@ -4,6 +4,7 @@ const API_BASE = "/api";
 let cachedAccounts = [];
 let cachedRules = [];
 let cachedTasks = [];
+let cachedGroups = []; // <--- [新增] 策略组缓存
 
 // ================== 认证模块 ==================
 
@@ -42,6 +43,7 @@ function getHeaders() {
 
 function initApp() {
     loadAccounts();
+    loadGroups(); // <--- [新增] 预加载策略组
     // 预加载其他数据可选
 }
 
@@ -53,6 +55,7 @@ function showSection(id) {
     
     if(id === 'section-accounts') loadAccounts();
     if(id === 'section-rules') loadRules();
+    if(id === 'section-groups') loadGroups(); // <--- [新增] 切换到策略组页面
     if(id === 'section-send') loadTasks();
     if(id === 'section-receive') loadInboxList();
 }
@@ -282,9 +285,16 @@ function loadRules() {
             
             // 构建匹配条件显示字符串
             let matchInfo = [];
-            if(r.match_sender) matchInfo.push(`<span class="badge bg-light text-dark border" title="发件人">发: ${escapeHtml(r.match_sender)}</span>`);
-            if(r.match_receiver) matchInfo.push(`<span class="badge bg-light text-dark border" title="收件人">收: ${escapeHtml(r.match_receiver)}</span>`);
-            if(r.match_body) matchInfo.push(`<span class="badge bg-light text-dark border" title="正文关键字">文: ${escapeHtml(r.match_body)}</span>`);
+            // [修改] 如果有 group_id，优先显示组信息
+            if(r.group_id) {
+                const group = cachedGroups.find(g => g.id == r.group_id);
+                const groupName = group ? group.name : `(ID:${r.group_id})`;
+                matchInfo.push(`<span class="badge bg-primary text-white" title="策略组">组: ${escapeHtml(groupName)}</span>`);
+            } else {
+                if(r.match_sender) matchInfo.push(`<span class="badge bg-light text-dark border" title="发件人">发: ${escapeHtml(r.match_sender)}</span>`);
+                if(r.match_receiver) matchInfo.push(`<span class="badge bg-light text-dark border" title="收件人">收: ${escapeHtml(r.match_receiver)}</span>`);
+                if(r.match_body) matchInfo.push(`<span class="badge bg-light text-dark border" title="正文关键字">文: ${escapeHtml(r.match_body)}</span>`);
+            }
             const matchHtml = matchInfo.length ? matchInfo.join('<br>') : '<span class="text-muted small">-</span>';
 
             // 复制完整链接内容: 别名---链接
@@ -326,6 +336,11 @@ function openAddRuleModal() {
     $("#rule-match-sender").val("");
     $("#rule-match-receiver").val("");
     $("#rule-match-body").val("");
+
+    // [新增] 重置策略组选择
+    $("#rule-group-select").val("");
+    toggleRuleMode();
+
     new bootstrap.Modal(document.getElementById('addRuleModal')).show();
 }
 
@@ -345,6 +360,10 @@ function openEditRule(id) {
         days = Math.ceil((r.valid_until - Date.now()) / 86400000);
     }
     $("#rule-valid").val(days);
+
+    // [新增] 回显策略组选择
+    $("#rule-group-select").val(r.group_id || "");
+    toggleRuleMode();
 
     $("#rule-match-sender").val(r.match_sender);
     $("#rule-match-receiver").val(r.match_receiver);
@@ -366,7 +385,8 @@ function saveRule() {
         valid_until: validUntil,
         match_sender: $("#rule-match-sender").val(),
         match_receiver: $("#rule-match-receiver").val(),
-        match_body: $("#rule-match-body").val()
+        match_body: $("#rule-match-body").val(),
+        group_id: $("#rule-group-select").val() || null // [新增] 策略组ID
     };
 
     if(!data.name) return showToast("必须填写绑定账号名");
@@ -413,7 +433,7 @@ function submitBatchRuleImport() {
         const file = document.getElementById('import-rule-file-input').files[0];
         if(!file) return showToast("请选择文件");
         const r = new FileReader();
-        r.onload = e => processRuleImport(e.target.result);
+        reader.onload = e => processRuleImport(e.target.result);
         r.readAsText(file);
     }
 }
@@ -887,6 +907,114 @@ $("#admin-pass").keyup(function(event) {
         doLogin();
     }
 });
+
+// ================== 策略组逻辑 (新增) ==================
+
+function loadGroups() {
+    fetch(`${API_BASE}/groups`, { headers: getHeaders() })
+    .then(r => r.json())
+    .then(res => {
+        cachedGroups = res.data || [];
+        renderGroupList();
+        updateRuleModalGroupSelect();
+    });
+}
+
+function renderGroupList() {
+    const tbody = $("#group-list-body");
+    tbody.empty();
+    if(cachedGroups.length === 0) {
+        tbody.html('<tr><td colspan="5" class="text-center text-muted p-4">暂无策略组</td></tr>');
+        return;
+    }
+    cachedGroups.forEach(g => {
+        tbody.append(`
+            <tr>
+                <td class="fw-bold">${escapeHtml(g.name)}</td>
+                <td>${escapeHtml(g.match_sender || '-')}</td>
+                <td>${escapeHtml(g.match_receiver || '-')}</td>
+                <td>${escapeHtml(g.match_body || '-')}</td>
+                <td>
+                    <button class="btn btn-sm btn-light text-primary" onclick="openEditGroup(${g.id})"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-sm btn-light text-danger" onclick="delGroup(${g.id})"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `);
+    });
+}
+
+function updateRuleModalGroupSelect() {
+    const sel = $("#rule-group-select");
+    const currentVal = sel.val();
+    sel.empty();
+    sel.append('<option value="">(自定义模式)</option>');
+    cachedGroups.forEach(g => {
+        sel.append(`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
+    });
+    if(currentVal) sel.val(currentVal);
+}
+
+function toggleRuleMode() {
+    const groupId = $("#rule-group-select").val();
+    if (groupId) {
+        $("#custom-match-fields").addClass("d-none");
+        $("#group-match-hint").removeClass("d-none");
+    } else {
+        $("#custom-match-fields").removeClass("d-none");
+        $("#group-match-hint").addClass("d-none");
+    }
+}
+
+function openAddGroupModal() {
+    $("#groupModalTitle").text("新建策略组");
+    $("#group-id").val("");
+    $("#group-name").val("");
+    $("#group-match-sender").val("");
+    $("#group-match-receiver").val("");
+    $("#group-match-body").val("");
+    new bootstrap.Modal(document.getElementById('addGroupModal')).show();
+}
+
+function openEditGroup(id) {
+    const g = cachedGroups.find(x => x.id == id);
+    if(!g) return;
+    $("#groupModalTitle").text("编辑策略组");
+    $("#group-id").val(g.id);
+    $("#group-name").val(g.name);
+    $("#group-match-sender").val(g.match_sender);
+    $("#group-match-receiver").val(g.match_receiver);
+    $("#group-match-body").val(g.match_body);
+    new bootstrap.Modal(document.getElementById('addGroupModal')).show();
+}
+
+function saveGroup() {
+    const data = {
+        name: $("#group-name").val(),
+        match_sender: $("#group-match-sender").val(),
+        match_receiver: $("#group-match-receiver").val(),
+        match_body: $("#group-match-body").val()
+    };
+    if(!data.name) return showToast("组名不能为空");
+    
+    const id = $("#group-id").val();
+    if(id) data.id = id;
+    
+    fetch(`${API_BASE}/groups`, { method: id ? 'PUT' : 'POST', headers: getHeaders(), body: JSON.stringify(data) })
+    .then(r => r.json()).then(res => {
+        if(res.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('addGroupModal')).hide();
+            showToast("保存成功");
+            loadGroups();
+        } else alert("保存失败");
+    });
+}
+
+function delGroup(id) {
+    if(!confirm("确定删除？关联规则将自动转为自定义模式。")) return;
+    fetch(`${API_BASE}/groups?id=${id}`, { method: 'DELETE', headers: getHeaders() })
+    .then(() => { showToast("已删除"); loadGroups(); });
+}
+
 // 启动
 if(localStorage.getItem("auth_token")) {
     $("#login-overlay").hide();
