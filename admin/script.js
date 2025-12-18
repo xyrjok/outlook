@@ -4,7 +4,7 @@ const API_BASE = "/api";
 let cachedAccounts = [];
 let cachedRules = [];
 let cachedTasks = [];
-let cachedGroups = [];
+let cachedGroups = []; 
 
 // ================== 认证模块 ==================
 
@@ -14,13 +14,14 @@ function doLogin() {
         const p = $("#admin-pass").val();
         if(!u || !p) return showToast("请输入账号密码");
         
+        // 简单防呆
         if (/[^\x00-\xff]/.test(u) || /[^\x00-\xff]/.test(p)) {
             return alert("错误：用户名或密码暂不支持中文，请在后台设置为纯英文/数字。");
         }
         
         const token = "Basic " + btoa(u + ":" + p);
         
-        // 兼容性修复：使用 window.event 安全获取按钮
+        // 修复点：使用兼容性更好的方式获取按钮对象
         const ev = window.event;
         const btn = ev ? $(ev.target) : $("#login-overlay button");
         const orgText = btn.length ? btn.text() : "登录";
@@ -73,6 +74,7 @@ function showSection(id) {
     $(`#${id}`).addClass("active");
     $(".list-group-item").removeClass("active");
     
+    // 修复点：兼容性获取当前点击元素
     const ev = window.event;
     if(ev && ev.currentTarget) {
         $(ev.currentTarget).addClass("active");
@@ -93,8 +95,10 @@ function loadAccounts() {
     .then(res => {
         const list = res.data || [];
         cachedAccounts = list;
+        
         const tbody = $("#account-list-body");
         tbody.empty();
+        
         const dataList = $("#account-list-options");
         dataList.empty();
 
@@ -126,8 +130,11 @@ function loadAccounts() {
                     </td>
                 </tr>
             `);
+
             dataList.append(`<option value="${escapeHtml(acc.name)}">${acc.email||''}</option>`);
         });
+        
+        // 更新统计
         $("#acc-page-info").text(`共 ${list.length} 条记录`);
     });
 }
@@ -143,11 +150,14 @@ function openAddModal() {
 function openEditAccount(id) {
     const acc = cachedAccounts.find(a => a.id == id);
     if(!acc) return;
+    
     $("#acc-id").val(acc.id);
     $("#acc-name").val(acc.name);
     $("#acc-email").val(acc.email);
+    
     const config = [acc.client_id, acc.client_secret, acc.refresh_token].filter(x=>x).join(', ');
     $("#acc-api-config").val(config);
+    
     new bootstrap.Modal(document.getElementById('addAccountModal')).show();
 }
 
@@ -157,8 +167,9 @@ function saveAccount() {
     const email = $("#acc-email").val().trim();
     const id = $("#acc-id").val();
 
+    // 唯一性检查：新增时检查邮箱是否重复
     if(!id && cachedAccounts.some(a => a.email === email)) {
-        return alert("保存失败：该邮箱地址已存在！");
+        return alert("保存失败：邮箱地址 " + email + " 已存在！");
     }
 
     const data = {
@@ -192,7 +203,6 @@ function delAccount(id) {
     fetch(`${API_BASE}/accounts?id=${id}`, { method: 'DELETE', headers: getHeaders() })
     .then(() => { showToast("已删除"); loadAccounts(); });
 }
-
 function updateAccountStatus(id, checked) {
     const status = checked ? 1 : 0;
     fetch(`${API_BASE}/accounts`, { 
@@ -202,11 +212,11 @@ function updateAccountStatus(id, checked) {
         else { showToast("修改失败"); loadAccounts(); }
     });
 }
-
 function batchDelAccounts() {
     const ids = $(".acc-check:checked").map((_,el) => el.value).get();
     if(ids.length === 0) return showToast("请先勾选");
     if(!confirm(`确定删除选中的 ${ids.length} 个账号？`)) return;
+    
     Promise.all(ids.map(id => fetch(`${API_BASE}/accounts?id=${id}`, { method: 'DELETE', headers: getHeaders() })))
     .then(() => { showToast("批量删除完成"); loadAccounts(); });
 }
@@ -246,26 +256,31 @@ function processAccountImport(text) {
             };
         });
 
+        // 批量导入邮箱唯一性检查
         const existingEmails = cachedAccounts.map(a => a.email);
         const skipped = [];
-        const toImport = json.filter(item => {
+        const toImport = [];
+
+        json.forEach(item => {
             if (existingEmails.includes(item.email)) {
                 skipped.push(item.email);
-                return false;
+            } else {
+                toImport.push(item);
             }
-            return true;
         });
 
         if (toImport.length === 0) {
-            return alert("导入跳过：所有账号均已存在。\n已跳过项：" + skipped.join(', '));
+            return alert("导入结束：所有账号均已存在。\n已跳过: " + skipped.join(', '));
         }
         
         fetch(`${API_BASE}/accounts`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(toImport) })
         .then(r => r.json()).then(res => {
             if(res.ok) {
                 bootstrap.Modal.getInstance(document.getElementById('batchAccountImportModal')).hide();
-                let msg = "导入成功";
-                if(skipped.length > 0) msg += "\n注意：已跳过以下重复邮箱：\n" + skipped.join('\n');
+                let msg = "导入成功！";
+                if(skipped.length > 0) {
+                    msg += "\n以下已存在的邮箱已被跳过：\n" + skipped.join('\n');
+                }
                 alert(msg);
                 loadAccounts();
             } else alert("导入失败: " + res.error);
@@ -280,6 +295,7 @@ function exportAccounts() {
     }).join('\n');
     downloadFile(content, "accounts_backup.txt");
 }
+
 // ================== 2. 规则管理 ==================
 
 function loadRules() {
@@ -288,6 +304,7 @@ function loadRules() {
         cachedRules = list;
         const tbody = $("#rule-list-body");
         tbody.empty();
+        
         if(!list || list.length === 0) {
             tbody.html('<tr><td colspan="8" class="text-center p-4 text-muted">暂无规则</td></tr>');
             $("#rule-page-info").text("共 0 条记录");
@@ -298,6 +315,7 @@ function loadRules() {
         list.forEach(r => {
             const link = `${host}/${r.query_code}`;
             const isExpired = r.valid_until && Date.now() > r.valid_until;
+            
             const acc = cachedAccounts.find(a => a.name === r.name);
             const hiddenEmail = acc ? escapeHtml(acc.email) : "";
 
@@ -308,33 +326,37 @@ function loadRules() {
                 } else {
                     const days = Math.ceil((r.valid_until - Date.now()) / 86400000);
                     const d = new Date(r.valid_until);
-                    validStr = `${days}天 (${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()})`;
+                    const dateStr = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+                    validStr = `${days}天 (${dateStr})`;
                 }
             }
             
             let matchInfo = [];
             if(r.group_id) {
                 const group = cachedGroups.find(g => g.id == r.group_id);
-                matchInfo.push(`<span class="badge bg-primary text-white">组: ${escapeHtml(group ? group.name : r.group_id)}</span>`);
+                const groupName = group ? group.name : `(ID:${r.group_id})`;
+                matchInfo.push(`<span class="badge bg-primary text-white" title="策略组">组: ${escapeHtml(groupName)}</span>`);
             } else {
-                if(r.match_sender) matchInfo.push(`<span class="badge bg-light text-dark border">发: ${escapeHtml(r.match_sender)}</span>`);
-                if(r.match_receiver) matchInfo.push(`<span class="badge bg-light text-dark border">收: ${escapeHtml(r.match_receiver)}</span>`);
-                if(r.match_body) matchInfo.push(`<span class="badge bg-light text-dark border">文: ${escapeHtml(r.match_body)}</span>`);
+                if(r.match_sender) matchInfo.push(`<span class="badge bg-light text-dark border" title="发件人">发: ${escapeHtml(r.match_sender)}</span>`);
+                if(r.match_receiver) matchInfo.push(`<span class="badge bg-light text-dark border" title="收件人">收: ${escapeHtml(r.match_receiver)}</span>`);
+                if(r.match_body) matchInfo.push(`<span class="badge bg-light text-dark border" title="正文关键字">文: ${escapeHtml(r.match_body)}</span>`);
             }
+            const matchHtml = matchInfo.length ? matchInfo.join('<br>') : '<span class="text-muted small">-</span>';
+            const fullLinkStr = `${r.alias}---${link}`;
             
             tbody.append(`
                 <tr data-email="${hiddenEmail}">
                     <td><input type="checkbox" class="rule-check" value="${r.id}"></td>
-                    <td class="text-primary cursor-pointer" onclick="copyStr('${escapeHtml(r.name)}')">${escapeHtml(r.name)}</td>
-                    <td class="text-primary cursor-pointer" onclick="copyStr('${escapeHtml(r.alias)}')">${escapeHtml(r.alias)}</td>
+                    <td class="text-primary" style="cursor:pointer" onclick="copyStr('${escapeHtml(r.name)}', '已复制账号名！')" title="点击复制">${escapeHtml(r.name)}</td>
+                    <td class="text-primary" style="cursor:pointer" onclick="copyStr('${escapeHtml(r.alias)}', '已复制别名！')" title="点击复制">${escapeHtml(r.alias)}</td>
                     <td>
                         <div class="input-group input-group-sm" style="width:160px">
-                            <input class="form-control bg-white" value="${r.query_code}" readonly>
-                            <button class="btn btn-outline-secondary" onclick="window.open('${link}')"><i class="fas fa-external-link-alt"></i></button>
-                            <button class="btn btn-outline-secondary" onclick="copyStr('${r.alias}---${link}')"><i class="fas fa-copy"></i></button>
+                            <input class="form-control bg-white" style="padding:.25rem .39rem;" value="${r.query_code}" readonly>
+                            <button class="btn btn-outline-secondary" onclick="window.open('${link}')" title="打开链接"><i class="fas fa-external-link-alt"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="copyStr('${fullLinkStr}', '已复制完整链接！')" title="复制: 别名---链接"><i class="fas fa-copy"></i></button>
                         </div>
                     </td>
-                    <td class="small">${matchInfo.join('<br>') || '-'}</td>
+                    <td class="small">${matchHtml}</td>
                     <td>${r.fetch_limit}</td>
                     <td>${validStr}</td>
                     <td>
@@ -359,26 +381,36 @@ function openAddRuleModal() {
     $("#rule-match-sender").val("");
     $("#rule-match-receiver").val("");
     $("#rule-match-body").val("");
+
     $("#rule-group-select").val("");
     toggleRuleMode();
+
     new bootstrap.Modal(document.getElementById('addRuleModal')).show();
 }
 
 function openEditRule(id) {
     const r = cachedRules.find(x => x.id == id);
     if(!r) return;
+    
     $("#rule-id").val(r.id);
     $("#rule-name").val(r.name);
     $("#rule-alias").val(r.alias);
     $("#rule-code").val(r.query_code);
     $("#rule-limit").val(r.fetch_limit);
-    let days = (r.valid_until && r.valid_until > Date.now()) ? Math.ceil((r.valid_until - Date.now()) / 86400000) : "";
+    
+    let days = "";
+    if(r.valid_until && r.valid_until > Date.now()) {
+        days = Math.ceil((r.valid_until - Date.now()) / 86400000);
+    }
     $("#rule-valid").val(days);
+
     $("#rule-group-select").val(r.group_id || "");
+    toggleRuleMode();
+
     $("#rule-match-sender").val(r.match_sender);
     $("#rule-match-receiver").val(r.match_receiver);
     $("#rule-match-body").val(r.match_body);
-    toggleRuleMode();
+    
     $("#ruleModalTitle").text("编辑收件规则");
     new bootstrap.Modal(document.getElementById('addRuleModal')).show();
 }
@@ -386,6 +418,7 @@ function openEditRule(id) {
 function saveRule() {
     const validDays = parseInt($("#rule-valid").val());
     const validUntil = validDays ? Date.now() + (validDays * 86400000) : null;
+
     const data = {
         name: $("#rule-name").val(),
         alias: $("#rule-alias").val(),
@@ -395,12 +428,16 @@ function saveRule() {
         match_sender: $("#rule-match-sender").val(),
         match_receiver: $("#rule-match-receiver").val(),
         match_body: $("#rule-match-body").val(),
-        group_id: $("#rule-group-select").val() || null
+        group_id: $("#rule-group-select").val() || null 
     };
+
     if(!data.name) return showToast("必须填写绑定账号名");
+
     const id = $("#rule-id").val();
     if(id) data.id = id;
-    fetch(`${API_BASE}/rules`, { method: id ? 'PUT' : 'POST', headers: getHeaders(), body: JSON.stringify(data) })
+    const method = id ? 'PUT' : 'POST';
+
+    fetch(`${API_BASE}/rules`, { method: method, headers: getHeaders(), body: JSON.stringify(data) })
     .then(r => r.json()).then(res => {
         if(res.success) {
             bootstrap.Modal.getInstance(document.getElementById('addRuleModal')).hide();
@@ -422,34 +459,113 @@ function batchDelRules() {
     }
 }
 
+function openBatchRuleModal() {
+    $("#import-rule-text").val("");
+    $("#import-rule-file-input").val("");
+    new bootstrap.Modal(document.getElementById('batchRuleImportModal')).show();
+}
+
+function submitBatchRuleImport() {
+    const activeTab = $("#ruleImportTabs .active").attr("data-bs-target");
+    if(activeTab === "#tab-rule-paste") {
+        processRuleImport($("#import-rule-text").val());
+    } else {
+        const file = document.getElementById('import-rule-file-input').files[0];
+        if(!file) return showToast("请选择文件");
+        const reader = new FileReader();
+        reader.onload = e => processRuleImport(e.target.result);
+        reader.readAsText(file);
+    }
+}
+
+function processRuleImport(text) {
+    try {
+        const lines = text.split('\n').filter(l => l.trim());
+        const items = lines.map(l => {
+            const p = l.split('\t').map(s=>s.trim());
+            const days = parseInt(p[4]);
+            return {
+                name: p[0], alias: p[1]||'', query_code: p[2]||'', fetch_limit: p[3]||'5',
+                valid_until: days ? Date.now() + days*86400000 : null,
+                match_sender: p[5]||'', match_receiver: p[6]||'', match_body: p[7]||''
+            };
+        });
+        
+        Promise.all(items.map(item => fetch(`${API_BASE}/rules`, { method:'POST', headers:getHeaders(), body:JSON.stringify(item) })))
+        .then(() => {
+            bootstrap.Modal.getInstance(document.getElementById('batchRuleImportModal')).hide();
+            alert("导入完成");
+            loadRules();
+        });
+    } catch(e) { alert("解析错误"); }
+}
+
+function exportRules() {
+    const content = cachedRules.map(r => {
+        const days = r.valid_until ? Math.ceil((r.valid_until - Date.now())/86400000) : '';
+        return `${r.name}\t${r.alias}\t${r.query_code}\t${r.fetch_limit}\t${days}\t${r.match_sender||''}\t${r.match_receiver||''}\t${r.match_body||''}`;
+    }).join('\n');
+    downloadFile(content, "rules_backup.txt");
+}
+
 // ================== 3. 发件任务 ==================
+
+function toLocalISOString(date) {
+    const pad = (n) => n < 10 ? '0' + n : n;
+    return date.getFullYear() + '-' +
+        pad(date.getMonth() + 1) + '-' +
+        pad(date.getDate()) + 'T' +
+        pad(date.getHours()) + ':' +
+        pad(date.getMinutes());
+}
+
+function getSelectedAccountId() {
+    const name = $("#send-from").val();
+    const acc = cachedAccounts.find(a => a.name == name);
+    return acc ? acc.id : null;
+}
 
 function loadTasks() {
     if(!cachedAccounts.length) loadAccounts();
+
     fetch(`${API_BASE}/tasks?limit=100`, { headers: getHeaders() }).then(r=>r.json()).then(res => {
         const list = res.data || [];
         cachedTasks = list;
         const tbody = $("#task-list-body");
         tbody.empty();
+
         if(list.length === 0) {
             tbody.html('<tr><td colspan="7" class="text-center p-4 text-muted">暂无任务</td></tr>');
             $("#task-page-info").text("共 0 条记录");
             return;
         }
+
         list.forEach(t => {
             const next = new Date(t.next_run_at).toLocaleString();
-            const statusClass = t.status === 'success' ? 'text-success' : (t.status === 'error' ? 'text-danger' : 'text-warning');
+            const statusMap = { 'pending': '等待中', 'success': '成功', 'error': '失败', 'running': '运行中' };
+            const statusText = statusMap[t.status] || t.status;
+            const statusClass = t.status==='success'?'text-success':(t.status==='error'?'text-danger':'text-warning');
+            const countsDisplay = `<div style="font-size: 0.75rem; color: #666; margin-top: 2px;">成功:${t.success_count||0} / 失败:${t.fail_count||0}</div>`;          
+            const loopSwitch = `
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" ${t.is_loop ? 'checked' : ''} onchange="toggleTaskLoop(${t.id}, this.checked)">
+            </div>`;
+
             tbody.append(`
                 <tr>
                     <td><input type="checkbox" class="task-check" value="${t.id}"></td>
                     <td>${escapeHtml(t.account_name || 'ID:'+t.account_id)}</td>
                     <td class="text-truncate" style="max-width:150px">${escapeHtml(t.subject||'-')}</td>
                     <td class="small">${next}</td>
-                    <td><div class="form-check form-switch"><input class="form-check-input" type="checkbox" ${t.is_loop ? 'checked' : ''} onchange="toggleTaskLoop(${t.id}, this.checked)"></div></td>
-                    <td class="${statusClass} fw-bold">${t.status} <small class="text-muted d-block">成:${t.success_count}/败:${t.fail_count}</small></td>
+                    <td>${loopSwitch}</td>
+                    <td class="${statusClass} fw-bold">
+                        ${statusText}
+                        ${countsDisplay}
+                    </td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="manualRun(${t.id})"><i class="fas fa-play"></i></button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="delTask(${t.id})"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-primary py-0" title="执行" onclick="manualRun(${t.id})"><i class="fas fa-play"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary py-0" title="编辑" onclick="editTask(${t.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-outline-danger py-0" title="删除" onclick="delTask(${t.id})"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
             `);
@@ -458,32 +574,144 @@ function loadTasks() {
     });
 }
 
+function filterTasks(val) {
+    const k = val.toLowerCase();
+    $("#task-list-body tr").each(function() {
+        const text = $(this).text().toLowerCase();
+        $(this).toggle(text.includes(k));
+    });
+}
+function toggleTaskLoop(id, isLoop) {
+    const task = cachedTasks.find(t => t.id === id);
+    if (!task) return;
+    
+    const data = { ...task, is_loop: isLoop };
+    fetch(`${API_BASE}/tasks`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) })
+        .then(r => r.json()).then(res => {
+            if(res.ok) { 
+                showToast("循环状态已更新"); 
+                task.is_loop = isLoop;
+            } else { 
+                showToast("更新失败: " + res.error); 
+                loadTasks();
+            }
+        });
+}
+
+function saveTask() {
+    const id = $("#edit-task-id").val();
+    const accId = getSelectedAccountId();
+    if(!accId) return alert("没有账号！");
+
+    const delay = $("#delay-config").val(); 
+    const localDateStr = $("#date-a").val();
+    let utcDateStr = "";
+    if (localDateStr) {
+        utcDateStr = new Date(localDateStr).toISOString();
+    }
+
+    const data = {
+        account_id: accId,
+        to_email: $("#send-to").val(),
+        subject: $("#send-subject").val() || "Remind",
+        content: $("#send-content").val() || ("Reminder of current time: " + new Date().toISOString()),
+        is_loop: $("#loop-switch").is(":checked"),
+        delay_config: delay,
+        base_date: utcDateStr
+    };
+
+    if(!data.to_email) return showToast("请补全收件人");
+    if(id) data.id = id;
+
+    const method = id ? 'PUT' : 'POST';
+
+    fetch(`${API_BASE}/tasks`, { method: method, headers: getHeaders(), body: JSON.stringify(data) })
+    .then(r => r.json()).then(res => {
+        if(res.ok) { 
+            showToast(id ? "任务已更新" : "已加入队列"); 
+            if(id) cancelEditTask(); 
+            loadTasks(); 
+        }
+        else alert("失败: " + res.error);
+    });
+}
+
+function editTask(id) {
+    const task = cachedTasks.find(t => t.id == id);
+    if(!task) return;
+    
+    $("#edit-task-id").val(task.id);
+    $("#send-from").val(task.account_name || '');
+    $("#send-to").val(task.to_email);
+    $("#send-subject").val(task.subject);
+    $("#send-content").val(task.content);
+    
+    const timeVal = task.next_run_at || task.base_date;
+    if (timeVal) {
+        const dateObj = new Date(timeVal);
+        if (!isNaN(dateObj.getTime())) {
+            $("#date-a").val(toLocalISOString(dateObj));
+        } else {
+            $("#date-a").val("");
+        }
+    } else {
+        $("#date-a").val("");
+    }
+    $("#delay-config").val(task.delay_config);
+    $("#loop-switch").prop("checked", !!task.is_loop);
+    
+    $("#task-card-title").text("编辑任务 (ID: " + id + ")");
+    $("#btn-save-task").html('<i class="fas fa-save"></i> 更新任务');
+    $("#btn-cancel-edit").removeClass("d-none");
+    
+    if(!$("#section-send").hasClass("active")) showSection('section-send');
+}
+
+function cancelEditTask() {
+    $("#edit-task-id").val("");
+    $("#task-card-title").text("创建任务 / 立即发送");
+    $("#btn-save-task").html('<i class="fas fa-clock"></i> 添加任务');
+    $("#btn-cancel-edit").addClass("d-none");
+    
+    $("#send-from").val("");
+    $("#send-to").val("");
+    $("#send-subject").val("");
+    $("#send-content").val("");
+    $("#date-a").val("");
+    $("#delay-config").val("");
+    $("#loop-switch").prop("checked", false);
+}
+
 function manualRun(id) {
     if(!confirm("立即执行?")) return;
-    fetch(`${API_BASE}/tasks`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ id, action: 'execute' }) })
-    .then(r => r.json()).then(res => {
+    fetch(`${API_BASE}/tasks`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ id: id, action: 'execute' }) })
+        .then(r=>r.json()).then(res=>{
         if(res.ok) { showToast("执行成功"); loadTasks(); }
-        else showToast("失败: " + res.error);
+        else showToast("失败: "+res.error);
     });
 }
 
 function sendNow() {
     const accId = getSelectedAccountId();
-    if(!accId) return alert("账号不存在！");
+    if(!accId) return alert("没有账号！");
+
+    // 修复点：使用兼容性获取
     const ev = window.event;
     const btn = ev ? $(ev.target) : null;
-    if(btn) btn.prop('disabled', true);
+    const org = btn ? btn.html() : "立即发送";
+    if(btn) btn.html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
     
     const data = {
         account_id: accId,
         to_email: $("#send-to").val(),
         subject: $("#send-subject").val() || "Remind",
-        content: $("#send-content").val() || ("Reminder: " + new Date().toISOString()),
+        content: $("#send-content").val() || ("Reminder of current time: " + new Date().toISOString()),
         immediate: true
     };
+    
     fetch(`${API_BASE}/tasks`, { method:'POST', headers: getHeaders(), body: JSON.stringify(data) })
     .then(r => r.json()).then(res => {
-        if(btn) btn.prop('disabled', false);
+        if(btn) btn.html(org).prop('disabled', false);
         if(res.ok) alert("发送成功");
         else alert("失败: " + res.error);
     });
@@ -493,17 +721,39 @@ function delTask(id) {
     if(confirm("删除任务?")) fetch(`${API_BASE}/tasks?id=${id}`, { method:'DELETE', headers: getHeaders() }).then(()=>loadTasks());
 }
 
-function toggleTaskLoop(id, isLoop) {
-    fetch(`${API_BASE}/tasks`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ id, is_loop: isLoop }) })
-    .then(r => r.json()).then(res => {
-        if(res.ok) showToast("设置已更新");
-        else loadTasks();
-    });
+function batchDelTasks() {
+    const ids = $(".task-check:checked").map((_,el) => el.value).get();
+    if(ids.length===0) return showToast("请先选择");
+    if(confirm(`删除 ${ids.length} 个任务?`)) {
+        fetch(`${API_BASE}/tasks?ids=${ids.join(',')}`, { method:'DELETE', headers: getHeaders() }).then(()=>loadTasks());
+    }
+}
+
+function openBatchTaskModal() {
+    $("#batch-task-json").val("");
+    new bootstrap.Modal(document.getElementById('batchTaskModal')).show();
+}
+
+function submitBatchTasks() {
+    try {
+        const json = JSON.parse($("#batch-task-json").val());
+        if(!Array.isArray(json)) throw new Error("必须是数组");
+        
+        fetch(`${API_BASE}/tasks`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(json) }) 
+        .then(() => {
+            bootstrap.Modal.getInstance(document.getElementById('batchTaskModal')).hide();
+            alert("批量添加成功");
+            loadTasks();
+        });
+    } catch(e) { alert("JSON 格式错误"); }
 }
 
 // ================== 4. 收件箱 ==================
 
 function loadInboxList() {
+    const listEl = $("#inbox-account-list");
+    listEl.empty();
+    
     if(cachedAccounts.length === 0) {
         fetch(`${API_BASE}/accounts?limit=100`, { headers: getHeaders() }).then(r=>r.json()).then(res => {
             cachedAccounts = res.data || [];
@@ -518,72 +768,95 @@ function renderInboxList(list) {
     const el = $("#inbox-account-list");
     el.empty();
     list.forEach(acc => {
-        if(acc.status == 0) return;
-        el.append(`<a href="#" class="list-group-item list-group-item-action" onclick="viewInbox(${acc.id}, '${escapeHtml(acc.name)}', this)">
-            <h6 class="mb-1 text-truncate">${escapeHtml(acc.name)}</h6>
-            <small class="text-muted">${escapeHtml(acc.email||'')}</small>
-        </a>`);
+        if (acc.status != null && acc.status == 0) return;
+        el.append(`
+            <a href="#" class="list-group-item list-group-item-action" onclick="viewInbox(${acc.id}, '${escapeHtml(acc.name)}', this)">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1 text-truncate">${escapeHtml(acc.name)}</h6>
+                    <small><i class="fas fa-chevron-right"></i></small>
+                </div>
+                <small class="text-muted d-block text-truncate" title="${escapeHtml(acc.email||'')}">${escapeHtml(acc.email||'')}</small>
+            </a>
+        `);
     });
+}
+
+function filterInboxAccounts(val) {
+    const k = val.toLowerCase();
+    $("#inbox-account-list a").each(function() {
+        $(this).toggle($(this).text().toLowerCase().includes(k));
+    });
+}
+
+let currentLimit = 2;
+
+function setLimit(n) {
+    const num = parseInt(n);
+    if(num > 0) {
+        currentLimit = num;
+        showToast(`已设置为显示 ${num} 封`);
+        const activeId = $("#inbox-account-list .active").attr("onclick"); 
+        if(activeId) {
+            $("#inbox-account-list .active").click();
+        }
+    }
 }
 
 function viewInbox(id, name, el) {
     $("#inbox-account-list a").removeClass("active");
-    $(el).addClass("active");
+    if(el) $(el).addClass("active");
+    
     const box = $("#email-content-view");
-    box.html('<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>');
-    fetch(`${API_BASE}/emails?account_id=${id}&limit=5`, { headers: getHeaders() })
+    box.html(`<div class="text-center mt-5"><div class="spinner-border text-primary"></div><p>正在同步 ${escapeHtml(name)}...</p></div>`);
+    
+    fetch(`${API_BASE}/emails?account_id=${id}&limit=${currentLimit}`, { headers: getHeaders() })
     .then(r => r.json()).then(res => {
-        if(!res.length) return box.html('<p class="text-center mt-5">收件箱为空</p>');
-        let html = `<div class="p-3"><h5>${escapeHtml(name)}</h5><hr>`;
-        res.forEach(m => {
-            html += `<div class="card mb-2 shadow-sm"><div class="card-body">
-                <h6 class="text-primary">${escapeHtml(m.subject)}</h6>
-                <small class="text-muted">${m.sender} | ${new Date(m.received_at).toLocaleString()}</small>
-                <div class="mt-2 small text-secondary">${m.body}</div>
-            </div></div>`;
+        if(res.error) return box.html(`<div class="text-center mt-5 text-danger"><p>错误: ${res.error}</p></div>`);
+        if(!res.length) return box.html(`<div class="text-center mt-5 text-muted"><p>收件箱为空</p></div>`);
+        
+        let html = `<div class="p-3 border-bottom d-flex justify-content-between bg-light"><strong>${escapeHtml(name)}</strong> <small>最新10封</small></div><div class="p-3" style="overflow-y:auto">`;
+        
+        res.forEach((m, index) => {
+            html += `
+                <div class="card mb-3 shadow-sm border-0">
+                    <div class="card-body p-3">
+                        <h6 class="card-title text-primary">${escapeHtml(m.subject||'(无主题)')}</h6>
+                        <h6 class="card-subtitle mb-2 text-muted small">${escapeHtml(m.sender)} | ${new Date(m.received_at).toLocaleString()}</h6>
+                        <div id="email-shadow-host-${index}" class="card-text small bg-light p-2 rounded overflow-auto" style="min-height:50px;"></div>
+                    </div>
+                </div>
+            `;
         });
-        box.html(html + '</div>');
+        html += '</div>';
+        box.html(html);
+        res.forEach((m, index) => {
+            const host = document.getElementById(`email-shadow-host-${index}`);
+            if (host) {
+                try {
+                    const shadow = host.attachShadow({mode: 'open'});
+                    shadow.innerHTML = `
+                        <style>
+                            :host { display: block; font-family: -apple-system, sans-serif; }
+                            img { max-width: 100%; height: auto; }
+                            p { margin: 0 0 10px 0; }
+                            body { background-color: transparent; margin: 0; color: #333; }
+                        </style>
+                        ${m.htmlContent || m.body}
+                    `;
+                } catch(e) { console.error("Shadow DOM error:", e); }
+            }
+        });
     });
-}
-
-// ================== 策略组 ==================
-
-function loadGroups() {
-    fetch(`${API_BASE}/groups`, { headers: getHeaders() }).then(r => r.json()).then(res => {
-        cachedGroups = res.data || [];
-        renderGroupList();
-        const sel = $("#rule-group-select").empty().append('<option value="">(自定义模式)</option>');
-        cachedGroups.forEach(g => sel.append(`<option value="${g.id}">${escapeHtml(g.name)}</option>`));
-    });
-}
-
-function renderGroupList() {
-    const b = $("#group-list-body").empty();
-    if(cachedGroups.length === 0) {
-        b.html('<tr><td colspan="5" class="text-center p-4 text-muted">暂无策略组</td></tr>');
-        $("#group-page-info").text("共 0 条记录");
-        return;
-    }
-    cachedGroups.forEach(g => {
-        b.append(`<tr><td>${escapeHtml(g.name)}</td><td>${escapeHtml(g.match_sender || '-')}</td><td>${escapeHtml(g.match_receiver || '-')}</td><td>${escapeHtml(g.match_body || '-')}</td>
-            <td><button class="btn btn-sm btn-light text-danger" onclick="delGroup(${g.id})"><i class="fas fa-trash"></i></button></td></tr>`);
-    });
-    $("#group-page-info").text(`共 ${cachedGroups.length} 条记录`);
-}
-
-function toggleRuleMode() {
-    const v = $("#rule-group-select").val();
-    $("#custom-match-fields").toggleClass("d-none", !!v);
-    $("#group-match-hint").toggleClass("d-none", !v);
-}
-
-function delGroup(id) {
-    if(!confirm("确定删除策略组？")) return;
-    fetch(`${API_BASE}/groups?id=${id}`, { method: 'DELETE', headers: getHeaders() }).then(() => loadGroups());
-}
+}    
 
 // ================== 通用工具 ==================
 
+function toggleAll(type) {
+    const checked = $(`#check-all-${type}`).is(":checked");
+    $(`.${type}-check`).prop("checked", checked);
+}
+
+// 搜索栏清除逻辑
 function clearSearch(inputId, filterFunc) {
     $(`#${inputId}`).val('');
     filterFunc('');
@@ -591,17 +864,23 @@ function clearSearch(inputId, filterFunc) {
 
 function filterAccounts(val) {
     const k = val.toLowerCase();
-    $("#account-list-body tr").each(function() { $(this).toggle($(this).text().toLowerCase().includes(k)); });
+    $("#account-list-body tr").each(function() {
+        $(this).toggle($(this).text().toLowerCase().includes(k));
+    });
 }
 
 function filterRules(val) {
     const k = val.toLowerCase();
-    $("#rule-list-body tr").each(function() { $(this).toggle($(this).text().toLowerCase().includes(k)); });
+    $("#rule-list-body tr").each(function() {
+        let content = $(this).text().toLowerCase();
+        content += " " + ($(this).attr("data-email") || "").toLowerCase();
+        $(this).find('input').each(function() { content += " " + $(this).val().toLowerCase(); });        
+        $(this).toggle(content.includes(k));
+    });
 }
 
-function toggleAll(type) {
-    const checked = $(`#check-all-${type}`).is(":checked");
-    $(`.${type}-check`).prop("checked", checked);
+function generateRandomRuleCode() {
+    $("#rule-code").val(Math.random().toString(36).substring(2, 12).toUpperCase());
 }
 
 function escapeHtml(text) {
@@ -609,29 +888,159 @@ function escapeHtml(text) {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function showToast(msg) {
-    $("#mouse-toast").text(msg).fadeIn().delay(300).fadeOut();
+function downloadFile(content, filename) {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
-function copyStr(str) {
-    navigator.clipboard.writeText(str).then(() => showToast("已复制"));
+function showToast(msg) {
+    $("#mouse-toast").text(msg).fadeIn().delay(300).fadeOut();
 }
 
 function copyAccountInfo(id, type) {
     const acc = cachedAccounts.find(a => a.id == id);
     if(!acc) return;
-    let text = type === 'email' ? acc.email : `${acc.client_id}, ${acc.client_secret}, ${acc.refresh_token}`;
-    copyStr(text);
+    let text = "";
+    if(type === 'email') text = acc.email;
+    if(type === 'creds') text = `${acc.client_id || ''}, ${acc.client_secret || ''}, ${acc.refresh_token || ''}`;
+    
+    if(text) {
+        navigator.clipboard.writeText(text).then(() => showToast("已复制！")).catch(()=>showToast("复制失败"));
+    }
 }
 
-function downloadFile(content, filename) {
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename; a.click();
+function copyStr(str, msg) {
+    if(!str) return;
+    navigator.clipboard.writeText(str).then(() => showToast(msg || "已复制！")).catch(()=>showToast("复制失败"));
 }
 
-// 启动检测
+$(document).mousemove(function(e){
+    $("#mouse-toast").css({top: e.pageY + 15, left: e.pageX + 15});
+});
+
+$("#admin-pass").keyup(function(event) {
+    if (event.keyCode === 13) {
+        doLogin();
+    }
+});
+
+// ================== 策略组逻辑 (新增) ==================
+
+function loadGroups() {
+    fetch(`${API_BASE}/groups`, { headers: getHeaders() })
+    .then(r => r.json())
+    .then(res => {
+        cachedGroups = res.data || [];
+        renderGroupList();
+        updateRuleModalGroupSelect();
+    });
+}
+
+function renderGroupList() {
+    const tbody = $("#group-list-body");
+    tbody.empty();
+    if(cachedGroups.length === 0) {
+        tbody.html('<tr><td colspan="5" class="text-center text-muted p-4">暂无策略组</td></tr>');
+        $("#group-page-info").text("共 0 条记录");
+        return;
+    }
+    cachedGroups.forEach(g => {
+        tbody.append(`
+            <tr>
+                <td class="fw-bold">${escapeHtml(g.name)}</td>
+                <td>${escapeHtml(g.match_sender || '-')}</td>
+                <td>${escapeHtml(g.match_receiver || '-')}</td>
+                <td>${escapeHtml(g.match_body || '-')}</td>
+                <td>
+                    <button class="btn btn-sm btn-light text-primary" onclick="openEditGroup(${g.id})"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-sm btn-light text-danger" onclick="delGroup(${g.id})"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `);
+    });
+    // 更新统计
+    $("#group-page-info").text(`共 ${cachedGroups.length} 条记录`);
+}
+
+function updateRuleModalGroupSelect() {
+    const sel = $("#rule-group-select");
+    const currentVal = sel.val();
+    sel.empty();
+    sel.append('<option value="">(自定义模式)</option>');
+    cachedGroups.forEach(g => {
+        sel.append(`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
+    });
+    if(currentVal) sel.val(currentVal);
+}
+
+function toggleRuleMode() {
+    const groupId = $("#rule-group-select").val();
+    if (groupId) {
+        $("#custom-match-fields").addClass("d-none");
+        $("#group-match-hint").removeClass("d-none");
+    } else {
+        $("#custom-match-fields").removeClass("d-none");
+        $("#group-match-hint").addClass("d-none");
+    }
+}
+
+function openAddGroupModal() {
+    $("#groupModalTitle").text("新建策略组");
+    $("#group-id").val("");
+    $("#group-name").val("");
+    $("#group-match-sender").val("");
+    $("#group-match-receiver").val("");
+    $("#group-match-body").val("");
+    new bootstrap.Modal(document.getElementById('addGroupModal')).show();
+}
+
+function openEditGroup(id) {
+    const g = cachedGroups.find(x => x.id == id);
+    if(!g) return;
+    $("#groupModalTitle").text("编辑策略组");
+    $("#group-id").val(g.id);
+    $("#group-name").val(g.name);
+    $("#group-match-sender").val(g.match_sender);
+    $("#group-match-receiver").val(g.match_receiver);
+    $("#group-match-body").val(g.match_body);
+    new bootstrap.Modal(document.getElementById('addGroupModal')).show();
+}
+
+function saveGroup() {
+    const data = {
+        name: $("#group-name").val(),
+        match_sender: $("#group-match-sender").val(),
+        match_receiver: $("#group-match-receiver").val(),
+        match_body: $("#group-match-body").val()
+    };
+    if(!data.name) return showToast("组名不能为空");
+    
+    const id = $("#group-id").val();
+    if(id) data.id = id;
+    
+    fetch(`${API_BASE}/groups`, { method: id ? 'PUT' : 'POST', headers: getHeaders(), body: JSON.stringify(data) })
+    .then(r => r.json()).then(res => {
+        if(res.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('addGroupModal')).hide();
+            showToast("保存成功");
+            loadGroups();
+        } else alert("保存失败");
+    });
+}
+
+function delGroup(id) {
+    if(!confirm("确定删除？关联规则将自动转为自定义模式。")) return;
+    fetch(`${API_BASE}/groups?id=${id}`, { method: 'DELETE', headers: getHeaders() })
+    .then(() => { showToast("已删除"); loadGroups(); });
+}
+
+// 启动
 if(localStorage.getItem("auth_token")) {
     $("#login-overlay").hide();
     initApp();
