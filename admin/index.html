@@ -49,8 +49,8 @@
                             
                             <div class="input-group input-group-sm ms-2" style="width: 200px;">
                                 <span class="input-group-text"><i class="fas fa-search"></i></span>
-                                <input type="text" class="form-control" id="search-acc-input" placeholder="搜索名称..." onkeyup="filterAccounts(this.value)">
-                                <button class="btn btn-outline-secondary" type="button" onclick="clearSearch('search-acc-input', filterAccounts)"><i class="fas fa-times"></i></button>
+                                <input type="text" class="form-control" placeholder="搜索名称..." id="search-acc" onkeyup="filterAccounts(this.value)">
+                                <button class="btn btn-outline-secondary" type="button" onclick="clearSearch('search-acc', filterAccounts)"><i class="fas fa-times"></i></button>
                             </div>
 
                             <div class="ms-auto">
@@ -117,6 +117,9 @@
                             </thead>
                             <tbody id="rule-list-body"></tbody>
                         </table>
+                        <div class="card-footer bg-white d-flex justify-content-between align-items-center border-top-0 pt-3">
+                            <small class="text-muted" id="rule-page-info">共 0 条</small>
+                        </div>
                     </div>
                 </div>
             </div>
