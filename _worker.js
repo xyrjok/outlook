@@ -61,11 +61,6 @@ export default {
       
       return new Response("MS Backend Active", { headers: corsHeaders() });
     },
-  
-    // 定时任务触发器 (用于处理发信队列和循环保活)
-    async scheduled(event, env, ctx) {
-      ctx.waitUntil(processScheduledTasks(env));
-    }
 };
 
 // ============================================================
