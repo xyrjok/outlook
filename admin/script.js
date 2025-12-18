@@ -4,27 +4,48 @@ const API_BASE = "/api";
 let cachedAccounts = [];
 let cachedRules = [];
 let cachedTasks = [];
-let cachedGroups = []; // <--- [新增] 策略组缓存
+let cachedGroups = []; 
 
 // ================== 认证模块 ==================
 
 function doLogin() {
-    const u = $("#admin-user").val();
-    const p = $("#admin-pass").val();
-    if(!u || !p) return showToast("请输入账号密码");
-    
-    const token = "Basic " + btoa(u + ":" + p);
-    
-    fetch(`${API_BASE}/login`, { method: 'POST', headers: { "Authorization": token } })
-    .then(r => {
-        if(r.ok) {
-            localStorage.setItem("auth_token", token);
-            $("#login-overlay").fadeOut();
-            initApp();
-        } else {
-            showToast("账号或密码错误");
+    try {
+        const u = $("#admin-user").val();
+        const p = $("#admin-pass").val();
+        if(!u || !p) return showToast("请输入账号密码");
+        
+        // 简单防呆
+        if (/[^\x00-\xff]/.test(u) || /[^\x00-\xff]/.test(p)) {
+            return alert("错误：用户名或密码暂不支持中文，请在后台设置为纯英文/数字。");
         }
-    }).catch(() => showToast("连接失败"));
+        
+        const token = "Basic " + btoa(u + ":" + p);
+        
+        const btn = $(event.target);
+        const orgText = btn.text();
+        btn.text("登录中...").prop("disabled", true);
+
+        fetch(`${API_BASE}/login`, { method: 'POST', headers: { "Authorization": token } })
+        .then(r => {
+            btn.text(orgText).prop("disabled", false);
+            if(r.ok) {
+                localStorage.setItem("auth_token", token);
+                $("#login-overlay").fadeOut();
+                initApp();
+            } else {
+                if(r.status === 401) showToast("账号或密码错误");
+                else showToast("服务器错误: " + r.status);
+            }
+        })
+        .catch(err => {
+            btn.text(orgText).prop("disabled", false);
+            alert("连接失败: " + err.message);
+        });
+
+    } catch(e) {
+        alert("代码错误: " + e.message);
+        console.error(e);
+    }
 }
 
 function doLogout() {
@@ -43,8 +64,7 @@ function getHeaders() {
 
 function initApp() {
     loadAccounts();
-    loadGroups(); // <--- [新增] 预加载策略组
-    // 预加载其他数据可选
+    loadGroups(); 
 }
 
 function showSection(id) {
@@ -55,12 +75,12 @@ function showSection(id) {
     
     if(id === 'section-accounts') loadAccounts();
     if(id === 'section-rules') loadRules();
-    if(id === 'section-groups') loadGroups(); // <--- [新增] 切换到策略组页面
+    if(id === 'section-groups') loadGroups();
     if(id === 'section-send') loadTasks();
     if(id === 'section-receive') loadInboxList();
 }
 
-// ================== 1. 账号管理 (Microsoft) ==================
+// ================== 1. 账号管理 ==================
 
 function loadAccounts() {
     fetch(`${API_BASE}/accounts?limit=100`, { headers: getHeaders() })
@@ -69,11 +89,9 @@ function loadAccounts() {
         const list = res.data || [];
         cachedAccounts = list;
         
-        // 渲染表格
         const tbody = $("#account-list-body");
         tbody.empty();
         
-        // --- [修改] 同步更新发信输入框的数据列表 (datalist) ---
         const dataList = $("#account-list-options");
         dataList.empty();
 
@@ -83,7 +101,6 @@ function loadAccounts() {
         }
 
         list.forEach(acc => {
-            // 拼接凭据显示字符串
             let configStr = '-';
             if (acc.client_id) {
                 const secretMask = acc.client_secret ? '******' : '';
@@ -106,7 +123,6 @@ function loadAccounts() {
                 </tr>
             `);
 
-            // --- [修改] 添加到搜索候选项 ---
             dataList.append(`<option value="${escapeHtml(acc.name)}">${acc.email||''}</option>`);
         });
         
@@ -130,7 +146,6 @@ function openEditAccount(id) {
     $("#acc-name").val(acc.name);
     $("#acc-email").val(acc.email);
     
-    // 回显凭据为逗号分隔字符串
     const config = [acc.client_id, acc.client_secret, acc.refresh_token].filter(x=>x).join(', ');
     $("#acc-api-config").val(config);
     
@@ -139,7 +154,6 @@ function openEditAccount(id) {
 
 function saveAccount() {
     const rawConfig = $("#acc-api-config").val().trim();
-    // 解析分隔符: 英文逗号、中文逗号、竖线
     const parts = rawConfig.split(/[,，|]/).map(s => s.trim());
     
     const data = {
@@ -183,16 +197,14 @@ function updateAccountStatus(id, checked) {
     });
 }
 function batchDelAccounts() {
-    const ids = $(".acc-check:checked").map((_,el) => el.value).get(); // 获取所有选中ID
+    const ids = $(".acc-check:checked").map((_,el) => el.value).get();
     if(ids.length === 0) return showToast("请先勾选");
     if(!confirm(`确定删除选中的 ${ids.length} 个账号？`)) return;
     
-    // 循环删除 (后端若支持批量ID可优化)
     Promise.all(ids.map(id => fetch(`${API_BASE}/accounts?id=${id}`, { method: 'DELETE', headers: getHeaders() })))
     .then(() => { showToast("批量删除完成"); loadAccounts(); });
 }
 
-// 批量导入
 function openBatchAccountModal() {
     $("#import-acc-json").val("");
     $("#import-acc-file-input").val("");
@@ -217,9 +229,7 @@ function processAccountImport(text) {
     try {
         const lines = text.split('\n').filter(l => l.trim());
         const json = lines.map(line => {
-            // 格式: 名称 \t 邮箱 \t ID,Secret,Token
             const p = line.split('\t').map(s => s.trim());
-            // 支持 英文逗号、中文逗号、竖线 分隔
             const creds = (p[2] || "").split(/[,，|]/).map(s => s.trim());
             return {
                 name: p[0],
@@ -241,14 +251,11 @@ function processAccountImport(text) {
     } catch(e) { alert("解析错误"); }
 }
 
-// 批量导出
 function exportAccounts() {
-    // 格式: 名称 \t 邮箱 \t ID,Secret,Token
     const content = cachedAccounts.map(acc => {
         const creds = `${acc.client_id||''},${acc.client_secret||''},${acc.refresh_token||''}`;
         return `${acc.name}\t${acc.email||''}\t${creds}`;
     }).join('\n');
-    
     downloadFile(content, "accounts_backup.txt");
 }
 
@@ -271,7 +278,7 @@ function loadRules() {
             const link = `${host}/${r.query_code}`;
             const isExpired = r.valid_until && Date.now() > r.valid_until;
             
-            // [新增] 找到对应的邮箱，并准备“藏”起来
+            // [核心修复] 只定义一次 acc，并用于获取 hiddenEmail
             const acc = cachedAccounts.find(a => a.name === r.name);
             const hiddenEmail = acc ? escapeHtml(acc.email) : "";
 
@@ -287,7 +294,6 @@ function loadRules() {
                 }
             }
             
-            // 构建匹配条件显示字符串
             let matchInfo = [];
             if(r.group_id) {
                 const group = cachedGroups.find(g => g.id == r.group_id);
@@ -300,8 +306,8 @@ function loadRules() {
             }
             const matchHtml = matchInfo.length ? matchInfo.join('<br>') : '<span class="text-muted small">-</span>';
             const fullLinkStr = `${r.alias}---${link}`;
-            const acc = cachedAccounts.find(a => a.name === r.name);
-            const hiddenEmail = acc ? escapeHtml(acc.email) : "";
+            
+            // 渲染行，包含隐藏的 data-email
             tbody.append(`
                 <tr data-email="${hiddenEmail}">
                     <td><input type="checkbox" class="rule-check" value="${r.id}"></td>
@@ -328,7 +334,7 @@ function loadRules() {
 }
 
 function openAddRuleModal() {
-    $("#ruleModalTitle").text("添加收件规则"); // 重置标题
+    $("#ruleModalTitle").text("添加收件规则");
     $("#rule-id").val("");
     $("#rule-name").val("");
     $("#rule-alias").val("");
@@ -339,7 +345,6 @@ function openAddRuleModal() {
     $("#rule-match-receiver").val("");
     $("#rule-match-body").val("");
 
-    // [新增] 重置策略组选择
     $("#rule-group-select").val("");
     toggleRuleMode();
 
@@ -356,14 +361,12 @@ function openEditRule(id) {
     $("#rule-code").val(r.query_code);
     $("#rule-limit").val(r.fetch_limit);
     
-    // 计算剩余天数回显
     let days = "";
     if(r.valid_until && r.valid_until > Date.now()) {
         days = Math.ceil((r.valid_until - Date.now()) / 86400000);
     }
     $("#rule-valid").val(days);
 
-    // [新增] 回显策略组选择
     $("#rule-group-select").val(r.group_id || "");
     toggleRuleMode();
 
@@ -388,12 +391,11 @@ function saveRule() {
         match_sender: $("#rule-match-sender").val(),
         match_receiver: $("#rule-match-receiver").val(),
         match_body: $("#rule-match-body").val(),
-        group_id: $("#rule-group-select").val() || null // [新增] 策略组ID
+        group_id: $("#rule-group-select").val() || null 
     };
 
     if(!data.name) return showToast("必须填写绑定账号名");
 
-    // 判断是新增还是修改
     const id = $("#rule-id").val();
     if(id) data.id = id;
     const method = id ? 'PUT' : 'POST';
@@ -420,7 +422,6 @@ function batchDelRules() {
     }
 }
 
-// 批量导入规则
 function openBatchRuleModal() {
     $("#import-rule-text").val("");
     $("#import-rule-file-input").val("");
@@ -453,8 +454,6 @@ function processRuleImport(text) {
             };
         });
         
-        // 循环插入 (后端支持单条，这里演示前端循环调)
-        // 实际建议后端支持数组
         Promise.all(items.map(item => fetch(`${API_BASE}/rules`, { method:'POST', headers:getHeaders(), body:JSON.stringify(item) })))
         .then(() => {
             bootstrap.Modal.getInstance(document.getElementById('batchRuleImportModal')).hide();
@@ -474,7 +473,6 @@ function exportRules() {
 
 // ================== 3. 发件任务 ==================
 
-// 辅助函数：将 Date 对象转换为 datetime-local 输入框所需的格式 (YYYY-MM-DDThh:mm)
 function toLocalISOString(date) {
     const pad = (n) => n < 10 ? '0' + n : n;
     return date.getFullYear() + '-' +
@@ -484,7 +482,6 @@ function toLocalISOString(date) {
         pad(date.getMinutes());
 }
 
-// 新增辅助函数：根据输入的名称获取 ID
 function getSelectedAccountId() {
     const name = $("#send-from").val();
     const acc = cachedAccounts.find(a => a.name == name);
@@ -492,7 +489,6 @@ function getSelectedAccountId() {
 }
 
 function loadTasks() {
-    // 确保有账号数据用于显示名称
     if(!cachedAccounts.length) loadAccounts();
 
     fetch(`${API_BASE}/tasks?limit=100`, { headers: getHeaders() }).then(r=>r.json()).then(res => {
@@ -508,14 +504,10 @@ function loadTasks() {
 
         list.forEach(t => {
             const next = new Date(t.next_run_at).toLocaleString();
-            
-            // 状态汉化与显示
             const statusMap = { 'pending': '等待中', 'success': '成功', 'error': '失败', 'running': '运行中' };
             const statusText = statusMap[t.status] || t.status;
-            
             const statusClass = t.status==='success'?'text-success':(t.status==='error'?'text-danger':'text-warning');
             const countsDisplay = `<div style="font-size: 0.75rem; color: #666; margin-top: 2px;">成功:${t.success_count||0} / 失败:${t.fail_count||0}</div>`;          
-            // 循环开关
             const loopSwitch = `
             <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" ${t.is_loop ? 'checked' : ''} onchange="toggleTaskLoop(${t.id}, this.checked)">
@@ -542,11 +534,10 @@ function loadTasks() {
         });
     });
 }
-// 新增：任务列表前端搜索/过滤函数
+
 function filterTasks(val) {
     const k = val.toLowerCase();
     $("#task-list-body tr").each(function() {
-        // 获取当前行的所有文本内容进行匹配
         const text = $(this).text().toLowerCase();
         $(this).toggle(text.includes(k));
     });
@@ -555,24 +546,21 @@ function toggleTaskLoop(id, isLoop) {
     const task = cachedTasks.find(t => t.id === id);
     if (!task) return;
     
-    // 这里复用 PUT 接口更新 is_loop 状态
     const data = { ...task, is_loop: isLoop };
     fetch(`${API_BASE}/tasks`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) })
         .then(r => r.json()).then(res => {
             if(res.ok) { 
                 showToast("循环状态已更新"); 
-                task.is_loop = isLoop; // 更新本地缓存
+                task.is_loop = isLoop;
             } else { 
                 showToast("更新失败: " + res.error); 
-                loadTasks(); // 失败还原
+                loadTasks();
             }
         });
 }
 
 function saveTask() {
     const id = $("#edit-task-id").val();
-    
-    // 验证账号是否存在
     const accId = getSelectedAccountId();
     if(!accId) return alert("没有些号！");
 
@@ -584,7 +572,7 @@ function saveTask() {
     }
 
     const data = {
-        account_id: accId, // 使用获取到的 ID
+        account_id: accId,
         to_email: $("#send-to").val(),
         subject: $("#send-subject").val() || "Remind",
         content: $("#send-content").val() || ("Reminder of current time: " + new Date().toISOString()),
@@ -614,14 +602,11 @@ function editTask(id) {
     if(!task) return;
     
     $("#edit-task-id").val(task.id);
-    // 回显账号名称而不是ID
     $("#send-from").val(task.account_name || '');
-    
     $("#send-to").val(task.to_email);
     $("#send-subject").val(task.subject);
     $("#send-content").val(task.content);
     
-    // 优先读取 next_run_at (数据库字段)，兼容 base_date
     const timeVal = task.next_run_at || task.base_date;
     if (timeVal) {
         const dateObj = new Date(timeVal);
@@ -649,7 +634,7 @@ function cancelEditTask() {
     $("#btn-save-task").html('<i class="fas fa-clock"></i> 添加任务');
     $("#btn-cancel-edit").addClass("d-none");
     
-    $("#send-from").val(""); // 清空输入框
+    $("#send-from").val("");
     $("#send-to").val("");
     $("#send-subject").val("");
     $("#send-content").val("");
@@ -660,7 +645,6 @@ function cancelEditTask() {
 
 function manualRun(id) {
     if(!confirm("立即执行?")) return;
-    // 使用 PUT 方法传递 action: 'execute'，与 Gmail 版逻辑一致
     fetch(`${API_BASE}/tasks`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ id: id, action: 'execute' }) })
         .then(r=>r.json()).then(res=>{
         if(res.ok) { showToast("执行成功"); loadTasks(); }
@@ -704,7 +688,6 @@ function batchDelTasks() {
     }
 }
 
-// 批量添加任务
 function openBatchTaskModal() {
     $("#batch-task-json").val("");
     new bootstrap.Modal(document.getElementById('batchTaskModal')).show();
@@ -715,7 +698,7 @@ function submitBatchTasks() {
         const json = JSON.parse($("#batch-task-json").val());
         if(!Array.isArray(json)) throw new Error("必须是数组");
         
-        fetch(`${API_BASE}/tasks`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(json) }) // 后端需支持POST数组
+        fetch(`${API_BASE}/tasks`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(json) }) 
         .then(() => {
             bootstrap.Modal.getInstance(document.getElementById('batchTaskModal')).hide();
             alert("批量添加成功");
@@ -727,11 +710,9 @@ function submitBatchTasks() {
 // ================== 4. 收件箱 ==================
 
 function loadInboxList() {
-    // 复用账号列表逻辑，只是渲染到左侧栏
     const listEl = $("#inbox-account-list");
     listEl.empty();
     
-    // 如果没有账号缓存，先加载
     if(cachedAccounts.length === 0) {
         fetch(`${API_BASE}/accounts?limit=100`, { headers: getHeaders() }).then(r=>r.json()).then(res => {
             cachedAccounts = res.data || [];
@@ -766,20 +747,15 @@ function filterInboxAccounts(val) {
     });
 }
 
-// 添加全局变量
 let currentLimit = 2;
 
-// 添加切换函数
 function setLimit(n) {
     const num = parseInt(n);
     if(num > 0) {
         currentLimit = num;
         showToast(`已设置为显示 ${num} 封`);
-        // 如果当前有选中的邮箱，立即刷新
         const activeId = $("#inbox-account-list .active").attr("onclick"); 
         if(activeId) {
-            // 解析出 ID 和 Name 重新触发加载
-            // 这里简单处理：让用户手动点一下或者自动触发点击
             $("#inbox-account-list .active").click();
         }
     }
@@ -851,10 +827,11 @@ function filterRules(val) {
     $("#rule-list-body tr").each(function() {
         let content = $(this).text().toLowerCase();
         content += " " + ($(this).attr("data-email") || "").toLowerCase();
-        $(this).find('input').each(function() { content += " " + $(this).val().toLowerCase(); });      
+        $(this).find('input').each(function() { content += " " + $(this).val().toLowerCase(); });        
         $(this).toggle(content.includes(k));
     });
 }
+
 function generateRandomRuleCode() {
     $("#rule-code").val(Math.random().toString(36).substring(2, 12).toUpperCase());
 }
@@ -879,7 +856,6 @@ function showToast(msg) {
     $("#mouse-toast").text(msg).fadeIn().delay(300).fadeOut();
 }
 
-// 新增：点击复制账号信息
 function copyAccountInfo(id, type) {
     const acc = cachedAccounts.find(a => a.id == id);
     if(!acc) return;
@@ -892,17 +868,15 @@ function copyAccountInfo(id, type) {
     }
 }
 
-// 通用复制函数
 function copyStr(str, msg) {
     if(!str) return;
     navigator.clipboard.writeText(str).then(() => showToast(msg || "已复制！")).catch(()=>showToast("复制失败"));
 }
 
-// 鼠标位置跟踪 (用于 Toast 跟随)
 $(document).mousemove(function(e){
     $("#mouse-toast").css({top: e.pageY + 15, left: e.pageX + 15});
 });
-// 监听密码输入框回车事件
+
 $("#admin-pass").keyup(function(event) {
     if (event.keyCode === 13) {
         doLogin();
