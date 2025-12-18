@@ -214,7 +214,9 @@ async function handleAccounts(req, env) {
         const items = Array.isArray(d) ? d : [d];
         
         for (const item of items) {
-            // 默认状态为 1 (启用)
+            const exist = await env.XYTJ_OUTLOOK.prepare("SELECT id FROM accounts WHERE email=?").bind(item.email).first();
+            if (exist) continue; 
+            
             await env.XYTJ_OUTLOOK.prepare(
                 "INSERT INTO accounts (name, email, client_id, client_secret, refresh_token, status) VALUES (?, ?, ?, ?, ?, 1)"
             ).bind(item.name, item.email||'', item.client_id, item.client_secret, item.refresh_token).run();
