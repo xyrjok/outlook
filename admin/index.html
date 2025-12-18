@@ -29,6 +29,8 @@
             <div class="list-group list-group-flush">
                 <a href="#" class="list-group-item list-group-item-action active" onclick="showSection('section-accounts')"><i class="fas fa-users-cog me-2"></i> 邮箱管理</a>
                 <a href="#" class="list-group-item list-group-item-action" onclick="showSection('section-rules')"><i class="fas fa-link me-2"></i> 收件规则</a>
+                <a href="#" class="list-group-item list-group-item-action" onclick="showSection('section-groups')"><i class="fas fa-layer-group me-2"></i> 策略组管理</a>
+                
                 <a href="#" class="list-group-item list-group-item-action" onclick="showSection('section-send')"><i class="fas fa-paper-plane me-2"></i> 发件任务</a>
                 <a href="#" class="list-group-item list-group-item-action" onclick="showSection('section-receive')"><i class="fas fa-inbox me-2"></i> 收件箱</a>
                 <a href="#" class="list-group-item list-group-item-action" onclick="doLogout()"><i class="fas fa-sign-out-alt me-2"></i> 退出登录</a>
@@ -113,6 +115,29 @@
                                 </tr>
                             </thead>
                             <tbody id="rule-list-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="section-groups" class="content-section d-none">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3><i class="fas fa-layer-group"></i> 过滤策略组管理</h3>
+                    <button class="btn btn-primary" onclick="openAddGroupModal()"><i class="fas fa-plus"></i> 新建策略组</button>
+                </div>
+                <div class="card shadow-sm">
+                    <div class="card-body p-0">
+                        <table class="table table-hover table-sm align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th width="20%">组名称</th>
+                                    <th>发件人匹配</th>
+                                    <th>收件人匹配</th>
+                                    <th>正文匹配</th>
+                                    <th width="100">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="group-list-body"></tbody>
                         </table>
                     </div>
                 </div>
@@ -355,19 +380,31 @@
                             <input type="number" class="form-control" id="rule-valid">
                         </div>
                     </div>
+
                     <div class="p-3 bg-light rounded border">
-                        <h6 class="small fw-bold mb-3 text-secondary">邮件过滤条件 (可选)</h6>
-                        <div class="mb-2">
-                            <input type="text" class="form-control form-control-sm" id="rule-match-sender" placeholder="发件人包含...">
+                        <label class="form-label fw-bold small text-secondary">过滤模式</label>
+                        <select class="form-select mb-3" id="rule-group-select" onchange="toggleRuleMode()">
+                            <option value="">(自定义模式)</option>
+                            </select>
+                        
+                        <div id="custom-match-fields">
+                            <h6 class="small fw-bold mb-3 text-secondary">邮件过滤条件 (可选)</h6>
+                            <div class="mb-2">
+                                <input type="text" class="form-control form-control-sm" id="rule-match-sender" placeholder="发件人包含...">
+                            </div>
+                            <div class="mb-2">
+                                <input type="text" class="form-control form-control-sm" id="rule-match-receiver" placeholder="收件人包含...">
+                            </div>
+                            <div>
+                                <input type="text" class="form-control form-control-sm" id="rule-match-body" placeholder="正文包含...">
+                            </div>
                         </div>
-                        <div class="mb-2">
-                            <input type="text" class="form-control form-control-sm" id="rule-match-receiver" placeholder="收件人包含...">
-                        </div>
-                        <div>
-                            <input type="text" class="form-control form-control-sm" id="rule-match-body" placeholder="正文包含...">
+
+                        <div id="group-match-hint" class="text-muted small d-none mt-2">
+                            <i class="fas fa-info-circle"></i> 将使用所选策略组的规则，下方无需填写。
                         </div>
                     </div>
-                </div>
+                    </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" onclick="saveRule()">保存规则</button>
                 </div>
@@ -399,6 +436,40 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" onclick="submitBatchRuleImport()">开始导入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addGroupModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="groupModalTitle">新建策略组</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="group-id">
+                    <div class="mb-3">
+                        <label class="form-label">组名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="group-name" placeholder="例如：Github通知组">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">匹配发件人</label>
+                        <input type="text" class="form-control" id="group-match-sender" placeholder="包含此关键词">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">匹配收件人</label>
+                        <input type="text" class="form-control" id="group-match-receiver" placeholder="包含此关键词">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">匹配正文</label>
+                        <input type="text" class="form-control" id="group-match-body" placeholder="多关键词用 | 分隔">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="saveGroup()">保存</button>
                 </div>
             </div>
         </div>
