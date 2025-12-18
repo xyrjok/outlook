@@ -212,14 +212,31 @@ async function handleAccounts(req, env) {
     if (method === 'POST') {
         const d = await req.json();
         const items = Array.isArray(d) ? d : [d];
-        
+    
+        // [新增] 获取现有邮箱列表用于去重
+        const { results } = await env.XYTJ_OUTLOOK.prepare("SELECT email FROM accounts").all();
+        const existingEmails = new Set(results.map(r => r.email));
+        const skipped = [];
+        const added = [];
+    
         for (const item of items) {
+            // [新增] 检查邮箱是否存在
+            if (item.email && existingEmails.has(item.email)) {
+                skipped.push(item.email);
+                continue;
+            }
+    
             // 默认状态为 1 (启用)
             await env.XYTJ_OUTLOOK.prepare(
                 "INSERT INTO accounts (name, email, client_id, client_secret, refresh_token, status) VALUES (?, ?, ?, ?, ?, 1)"
             ).bind(item.name, item.email||'', item.client_id, item.client_secret, item.refresh_token).run();
+    
+            // [新增] 更新本地 Set 防止同批次重复
+            if (item.email) existingEmails.add(item.email);
+            added.push(item.email);
         }
-        return jsonResp({ ok: true });
+        // [修改] 返回详细结果
+        return jsonResp({ ok: true, added_count: added.length, skipped: skipped });
     }
     
     // 更新
@@ -229,6 +246,9 @@ async function handleAccounts(req, env) {
             await env.XYTJ_OUTLOOK.prepare("UPDATE accounts SET status=? WHERE id=?").bind(d.status, d.id).run();
             return jsonResp({ ok: true });
         }
+        // [新增] 检查邮箱是否被其他账号占用
+        const exist = await env.XYTJ_OUTLOOK.prepare("SELECT id FROM accounts WHERE email=? AND id!=?").bind(d.email, d.id).first();
+        if (exist) return jsonResp({ ok: false, error: "该邮箱已存在于其他账号中" });
         await env.XYTJ_OUTLOOK.prepare(
             "UPDATE accounts SET name=?, email=?, client_id=?, client_secret=?, refresh_token=? WHERE id=?"
         ).bind(d.name, d.email, d.client_id, d.client_secret, d.refresh_token, d.id).run();
