@@ -41,3 +41,12 @@ CREATE TABLE IF NOT EXISTS access_rules (
     created_at      INTEGER DEFAULT (strftime('%s', 'now')),
     match_receiver  TEXT
 );
+
+CREATE TABLE IF NOT EXISTS filter_groups (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    match_sender    TEXT,
+    match_receiver  TEXT,
+    match_body      TEXT,
+    created_at      INTEGER DEFAULT (strftime('%s', 'now'))
+);
