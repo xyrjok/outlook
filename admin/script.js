@@ -6,6 +6,32 @@ let cachedRules = [];
 let cachedTasks = [];
 let cachedGroups = []; 
 
+// [新增] 分页相关状态
+const PAGE_SIZE = 10;
+let pageState = {
+    acc: { page: 1, data: [], filtered: [] },
+    rule: { page: 1, data: [], filtered: [] },
+    task: { page: 1, data: [], filtered: [] }
+};
+
+function clearSearch(inputId, filterFunc) {
+    $(`#${inputId}`).val('');
+    filterFunc('');
+}
+
+function changePage(type, delta) {
+    const s = pageState[type];
+    const maxPage = Math.ceil(s.filtered.length / PAGE_SIZE) || 1;
+    let newPage = s.page + delta;
+    if (newPage < 1) newPage = 1;
+    if (newPage > maxPage) newPage = maxPage;
+    
+    s.page = newPage;
+    if (type === 'acc') renderAccountsTable();
+    if (type === 'rule') renderRulesTable();
+    if (type === 'task') renderTasksTable();
+}
+
 // ================== 认证模块 ==================
 
 function doLogin() {
@@ -86,20 +112,33 @@ function loadAccounts() {
     fetch(`${API_BASE}/accounts?limit=100`, { headers: getHeaders() })
     .then(r => r.json())
     .then(res => {
-        const list = res.data || [];
-        cachedAccounts = list;
+        // [修改] 初始化分页数据
+        cachedAccounts = res.data || [];
+        pageState.acc.data = cachedAccounts;
+        pageState.acc.filtered = cachedAccounts;
+        pageState.acc.page = 1;
+        renderAccountsTable();
         
-        const tbody = $("#account-list-body");
-        tbody.empty();
-        
+        // 更新下拉列表
         const dataList = $("#account-list-options");
         dataList.empty();
+        cachedAccounts.forEach(acc => {
+            dataList.append(`<option value="${escapeHtml(acc.name)}">${acc.email||''}</option>`);
+        });
+    });
+}
 
-        if(list.length === 0) {
-            tbody.html('<tr><td colspan="6" class="text-center p-4 text-muted">暂无账号</td></tr>');
-            return;
-        }
+function renderAccountsTable() {
+    const { filtered, page } = pageState.acc;
+    const start = (page - 1) * PAGE_SIZE;
+    const end = start + PAGE_SIZE;
+    const list = filtered.slice(start, end);
+    const tbody = $("#account-list-body");
+    tbody.empty();
 
+    if(list.length === 0) {
+        tbody.html('<tr><td colspan="6" class="text-center p-4 text-muted">暂无账号或无匹配项</td></tr>');
+    } else {
         list.forEach(acc => {
             let configStr = '-';
             if (acc.client_id) {
@@ -122,12 +161,20 @@ function loadAccounts() {
                     </td>
                 </tr>
             `);
-
-            dataList.append(`<option value="${escapeHtml(acc.name)}">${acc.email||''}</option>`);
         });
-        
-        $("#acc-page-info").text(`共 ${list.length} 条`);
+    }
+    $("#acc-page-info").text(`共 ${filtered.length} 条 (第 ${page}/${Math.ceil(filtered.length/PAGE_SIZE)||1} 页)`);
+}
+
+// [修改] 过滤账号 (支持分页)
+function filterAccounts(val) {
+    const k = val.toLowerCase();
+    pageState.acc.filtered = pageState.acc.data.filter(item => {
+        const text = (item.name + " " + (item.email||"")).toLowerCase();
+        return text.includes(k);
     });
+    pageState.acc.page = 1;
+    renderAccountsTable();
 }
 
 function openAddModal() {
@@ -177,6 +224,7 @@ function saveAccount() {
             showToast("保存成功");
             loadAccounts();
         } else {
+            // [修改] 显示具体错误
             alert("保存失败: " + res.error);
         }
     });
@@ -244,7 +292,12 @@ function processAccountImport(text) {
         .then(r => r.json()).then(res => {
             if(res.ok) {
                 bootstrap.Modal.getInstance(document.getElementById('batchAccountImportModal')).hide();
-                alert("导入成功");
+                // [修改] 提示导入结果及跳过的邮箱
+                let msg = `导入成功 ${res.added_count || 0} 个账号。`;
+                if (res.skipped && res.skipped.length > 0) {
+                    msg += `\n以下邮箱因已存在而跳过:\n` + res.skipped.join('\n');
+                }
+                alert(msg);
                 loadAccounts();
             } else alert("导入失败: " + res.error);
         });
@@ -264,21 +317,28 @@ function exportAccounts() {
 function loadRules() {
     fetch(`${API_BASE}/rules`, { headers: getHeaders() })
     .then(r => r.json()).then(list => {
-        cachedRules = list;
-        const tbody = $("#rule-list-body");
-        tbody.empty();
-        
-        if(!list || list.length === 0) {
-            tbody.html('<tr><td colspan="8" class="text-center p-4 text-muted">暂无规则</td></tr>');
-            return;
-        }
+        cachedRules = list || [];
+        pageState.rule.data = cachedRules;
+        pageState.rule.filtered = cachedRules;
+        pageState.rule.page = 1;
+        renderRulesTable();
+    });
+}
 
+function renderRulesTable() {
+    const { filtered, page } = pageState.rule;
+    const start = (page - 1) * PAGE_SIZE;
+    const list = filtered.slice(start, start + PAGE_SIZE);
+    const tbody = $("#rule-list-body");
+    tbody.empty();
+    
+    if(list.length === 0) {
+        tbody.html('<tr><td colspan="8" class="text-center p-4 text-muted">暂无规则或无匹配项</td></tr>');
+    } else {
         const host = window.location.origin;
         list.forEach(r => {
             const link = `${host}/${r.query_code}`;
             const isExpired = r.valid_until && Date.now() > r.valid_until;
-            
-            // [核心修复] 只定义一次 acc，并用于获取 hiddenEmail
             const acc = cachedAccounts.find(a => a.name === r.name);
             const hiddenEmail = acc ? escapeHtml(acc.email) : "";
 
@@ -307,7 +367,6 @@ function loadRules() {
             const matchHtml = matchInfo.length ? matchInfo.join('<br>') : '<span class="text-muted small">-</span>';
             const fullLinkStr = `${r.alias}---${link}`;
             
-            // 渲染行，包含隐藏的 data-email
             tbody.append(`
                 <tr data-email="${hiddenEmail}">
                     <td><input type="checkbox" class="rule-check" value="${r.id}"></td>
@@ -330,7 +389,21 @@ function loadRules() {
                 </tr>
             `);
         });
+    }
+    $("#rule-page-info").text(`共 ${filtered.length} 条 (第 ${page}/${Math.ceil(filtered.length/PAGE_SIZE)||1} 页)`);
+}
+
+// [修改] 过滤规则 (支持分页)
+function filterRules(val) {
+    const k = val.toLowerCase();
+    pageState.rule.filtered = pageState.rule.data.filter(r => {
+        const acc = cachedAccounts.find(a => a.name === r.name);
+        const email = acc ? acc.email : "";
+        const content = (r.name + " " + r.alias + " " + r.query_code + " " + email).toLowerCase();
+        return content.includes(k);
     });
+    pageState.rule.page = 1;
+    renderRulesTable();
 }
 
 function openAddRuleModal() {
@@ -492,16 +565,24 @@ function loadTasks() {
     if(!cachedAccounts.length) loadAccounts();
 
     fetch(`${API_BASE}/tasks?limit=100`, { headers: getHeaders() }).then(r=>r.json()).then(res => {
-        const list = res.data || [];
-        cachedTasks = list;
-        const tbody = $("#task-list-body");
-        tbody.empty();
+        cachedTasks = res.data || [];
+        pageState.task.data = cachedTasks;
+        pageState.task.filtered = cachedTasks;
+        pageState.task.page = 1;
+        renderTasksTable();
+    });
+}
 
-        if(list.length === 0) {
-            tbody.html('<tr><td colspan="7" class="text-center p-4 text-muted">暂无任务</td></tr>');
-            return;
-        }
+function renderTasksTable() {
+    const { filtered, page } = pageState.task;
+    const start = (page - 1) * PAGE_SIZE;
+    const list = filtered.slice(start, start + PAGE_SIZE);
+    const tbody = $("#task-list-body");
+    tbody.empty();
 
+    if(list.length === 0) {
+        tbody.html('<tr><td colspan="7" class="text-center p-4 text-muted">暂无任务或无匹配项</td></tr>');
+    } else {
         list.forEach(t => {
             const next = new Date(t.next_run_at).toLocaleString();
             const statusMap = { 'pending': '等待中', 'success': '成功', 'error': '失败', 'running': '运行中' };
@@ -532,16 +613,21 @@ function loadTasks() {
                 </tr>
             `);
         });
-    });
+    }
+    $("#task-page-info").text(`共 ${filtered.length} 条 (第 ${page}/${Math.ceil(filtered.length/PAGE_SIZE)||1} 页)`);
 }
 
+// [修改] 过滤任务 (支持分页)
 function filterTasks(val) {
     const k = val.toLowerCase();
-    $("#task-list-body tr").each(function() {
-        const text = $(this).text().toLowerCase();
-        $(this).toggle(text.includes(k));
+    pageState.task.filtered = pageState.task.data.filter(t => {
+        const text = ((t.account_name||"") + " " + (t.subject||"") + " " + (t.to_email||"")).toLowerCase();
+        return text.includes(k);
     });
+    pageState.task.page = 1;
+    renderTasksTable();
 }
+
 function toggleTaskLoop(id, isLoop) {
     const task = cachedTasks.find(t => t.id === id);
     if (!task) return;
@@ -815,22 +901,7 @@ function toggleAll(type) {
     $(`.${type}-check`).prop("checked", checked);
 }
 
-function filterAccounts(val) {
-    const k = val.toLowerCase();
-    $("#account-list-body tr").each(function() {
-        $(this).toggle($(this).text().toLowerCase().includes(k));
-    });
-}
-
-function filterRules(val) {
-    const k = val.toLowerCase();
-    $("#rule-list-body tr").each(function() {
-        let content = $(this).text().toLowerCase();
-        content += " " + ($(this).attr("data-email") || "").toLowerCase();
-        $(this).find('input').each(function() { content += " " + $(this).val().toLowerCase(); });        
-        $(this).toggle(content.includes(k));
-    });
-}
+// 注意：原有的 filterAccounts, filterRules, filterTasks 已被替换为支持分页的版本，并移至各自模块区域
 
 function generateRandomRuleCode() {
     $("#rule-code").val(Math.random().toString(36).substring(2, 12).toUpperCase());
