@@ -49,7 +49,8 @@
                             
                             <div class="input-group input-group-sm ms-2" style="width: 200px;">
                                 <span class="input-group-text"><i class="fas fa-search"></i></span>
-                                <input type="text" class="form-control" placeholder="搜索名称..." onkeyup="filterAccounts(this.value)">
+                                <input type="text" id="search-acc" class="form-control" placeholder="搜索名称..." onkeyup="filterAccounts(this.value)">
+                                <button class="btn btn-outline-secondary border-start-0" type="button" onclick="clearSearch('search-acc', filterAccounts)"><i class="fas fa-times"></i></button>
                             </div>
 
                             <div class="ms-auto">
@@ -74,6 +75,10 @@
                         
                         <div class="card-footer bg-white d-flex justify-content-between align-items-center border-top-0 pt-3">
                             <small class="text-muted" id="acc-page-info">共 0 条</small>
+                            <div>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="changePage('acc', -1)">上一页</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="changePage('acc', 1)">下一页</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -92,7 +97,8 @@
                             
                             <div class="input-group input-group-sm ms-2" style="width: 250px;">
                                 <span class="input-group-text"><i class="fas fa-search"></i></span>
-                                <input type="text" class="form-control" placeholder="搜索名称/别名/查询码..." onkeyup="filterRules(this.value)">
+                                <input type="text" id="search-rule" class="form-control" placeholder="搜索名称/别名/查询码..." onkeyup="filterRules(this.value)">
+                                <button class="btn btn-outline-secondary border-start-0" type="button" onclick="clearSearch('search-rule', filterRules)"><i class="fas fa-times"></i></button>
                             </div>
 
                             <div class="ms-auto">
@@ -116,6 +122,14 @@
                             </thead>
                             <tbody id="rule-list-body"></tbody>
                         </table>
+
+                        <div class="card-footer bg-white d-flex justify-content-between align-items-center border-top-0 pt-3">
+                            <small class="text-muted" id="rule-page-info">共 0 条</small>
+                            <div>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="changePage('rule', -1)">上一页</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="changePage('rule', 1)">下一页</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -196,7 +210,8 @@
                                 <span>任务队列</span>
                                 <div class="input-group input-group-sm mx-2" style="width: 250px;">
                                     <span class="input-group-text"><i class="fas fa-search"></i></span>
-                                    <input type="text" class="form-control" placeholder="搜主题/收件人/发件箱..." onkeyup="filterTasks(this.value)">
+                                    <input type="text" id="search-task" class="form-control" placeholder="搜主题/收件人/发件箱..." onkeyup="filterTasks(this.value)">
+                                    <button class="btn btn-outline-secondary border-start-0" type="button" onclick="clearSearch('search-task', filterTasks)"><i class="fas fa-times"></i></button>
                                 </div>
                                 <div>
                                     <button class="btn btn-sm btn-outline-secondary me-1" onclick="loadTasks()"><i class="fas fa-sync-alt"></i> 刷新</button>
@@ -219,6 +234,14 @@
                                     </thead>
                                     <tbody id="task-list-body"></tbody>
                                 </table>
+                                
+                                <div class="p-2 bg-white d-flex justify-content-between align-items-center border-top">
+                                    <small class="text-muted" id="task-page-info">共 0 条</small>
+                                    <div>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="changePage('task', -1)">上一页</button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="changePage('task', 1)">下一页</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
