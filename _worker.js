@@ -53,6 +53,7 @@ export default {
       }
   
       // 6. API 路由分发
+      if (path.startsWith('/api/groups')) return handleGroups(request, env); // <--- [新增] 策略组路由
       if (path.startsWith('/api/accounts')) return handleAccounts(request, env);
       if (path.startsWith('/api/tasks')) return handleTasks(request, env);
       if (path.startsWith('/api/emails')) return handleEmails(request, env);
@@ -302,7 +303,6 @@ async function handleTasks(req, env) {
         return jsonResp({ ok: true });
     }
 
-    // ================= [修复的核心部分] =================
     // PUT: 更新任务 (编辑 / 执行 / 状态修改)
     if (method === 'PUT') {
         const d = await req.json();
@@ -318,7 +318,6 @@ async function handleTasks(req, env) {
             // 调用发信逻辑
             const res = await sendEmailMS(env, acc, task.to_email, task.subject, task.content);
             
-            // === [修复：增加判断逻辑] ===
             if (res.success) {
                 if (task.is_loop) {
                     await env.XYTJ_OUTLOOK.prepare("UPDATE send_tasks SET success_count=success_count+1 WHERE id=?").bind(d.id).run();
@@ -350,7 +349,6 @@ async function handleTasks(req, env) {
         await env.XYTJ_OUTLOOK.prepare(sql).bind(...params).run();
         return jsonResp({ ok: true });
     }
-    // ===================================================
 
     // DELETE: 删除任务
     if (method === 'DELETE') {
@@ -393,10 +391,10 @@ async function handleRules(req, env) {
     }
     if (method === 'PUT') {
         const d = await req.json();
-        // 修改：增加 match_receiver
+        // 修改：增加 match_receiver 和 group_id
         await env.XYTJ_OUTLOOK.prepare(
-            "UPDATE access_rules SET name=?, alias=?, query_code=?, fetch_limit=?, valid_until=?, match_sender=?, match_receiver=?, match_body=? WHERE id=?"
-        ).bind(d.name, d.alias, d.query_code, d.fetch_limit, d.valid_until, d.match_sender, d.match_receiver, d.match_body, d.id).run();
+            "UPDATE access_rules SET name=?, alias=?, query_code=?, fetch_limit=?, valid_until=?, match_sender=?, match_receiver=?, match_body=?, group_id=? WHERE id=?"
+        ).bind(d.name, d.alias, d.query_code, d.fetch_limit, d.valid_until, d.match_sender, d.match_receiver, d.match_body, d.group_id || null, d.id).run();
         return jsonResp({ success: true });
     }
     
@@ -405,10 +403,10 @@ async function handleRules(req, env) {
         // 如果没有query_code则生成随机码
         const code = d.query_code || Math.random().toString(36).substring(2, 12).toUpperCase();
         
-        // 修改：增加 match_receiver
+        // 修改：增加 match_receiver 和 group_id
         await env.XYTJ_OUTLOOK.prepare(
-            "INSERT INTO access_rules (name, alias, query_code, fetch_limit, valid_until, match_sender, match_receiver, match_body) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        ).bind(d.name, d.alias, code, d.fetch_limit, d.valid_until, d.match_sender, d.match_receiver, d.match_body).run();
+            "INSERT INTO access_rules (name, alias, query_code, fetch_limit, valid_until, match_sender, match_receiver, match_body, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ).bind(d.name, d.alias, code, d.fetch_limit, d.valid_until, d.match_sender, d.match_receiver, d.match_body, d.group_id || null).run();
         return jsonResp({ success: true });
     }
     
@@ -421,6 +419,38 @@ async function handleRules(req, env) {
     }
 }
 
+// 5. 策略组管理 (新增)
+async function handleGroups(req, env) {
+    const url = new URL(req.url);
+    const method = req.method;
+
+    if (method === 'GET') {
+        const { results } = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM filter_groups ORDER BY id DESC").all();
+        return jsonResp({ data: results });
+    }
+    if (method === 'POST') {
+        const d = await req.json();
+        await env.XYTJ_OUTLOOK.prepare(
+            "INSERT INTO filter_groups (name, match_sender, match_receiver, match_body) VALUES (?, ?, ?, ?)"
+        ).bind(d.name, d.match_sender, d.match_receiver, d.match_body).run();
+        return jsonResp({ ok: true });
+    }
+    if (method === 'PUT') {
+        const d = await req.json();
+        await env.XYTJ_OUTLOOK.prepare(
+            "UPDATE filter_groups SET name=?, match_sender=?, match_receiver=?, match_body=? WHERE id=?"
+        ).bind(d.name, d.match_sender, d.match_receiver, d.match_body, d.id).run();
+        return jsonResp({ ok: true });
+    }
+    if (method === 'DELETE') {
+        const id = url.searchParams.get('id');
+        // 删除组时，将使用了该组的规则重置为无组状态（group_id=NULL）
+        await env.XYTJ_OUTLOOK.prepare("UPDATE access_rules SET group_id=NULL WHERE group_id=?").bind(id).run();
+        await env.XYTJ_OUTLOOK.prepare("DELETE FROM filter_groups WHERE id=?").bind(id).run();
+        return jsonResp({ ok: true });
+    }
+}
+
 // ============================================================
 // 其他处理函数
 // ============================================================
@@ -430,6 +460,16 @@ async function handlePublicQuery(code, env) {
     // 1. 查规则
     const rule = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM access_rules WHERE query_code=?").bind(code).first();
     if (!rule) return new Response("查询链接无效 (Link Invalid)", {status: 404, headers: {"Content-Type": "text/plain;charset=UTF-8"}});
+
+    // === [新增] 如果绑定了策略组，读取组配置覆盖 rule 的本地配置 ===
+    if (rule.group_id) {
+        const group = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM filter_groups WHERE id=?").bind(rule.group_id).first();
+        if (group) {
+            rule.match_sender = group.match_sender;
+            rule.match_receiver = group.match_receiver;
+            rule.match_body = group.match_body;
+        }
+    }
 
     // 2. 查有效期
     if (rule.valid_until && Date.now() > rule.valid_until) {
