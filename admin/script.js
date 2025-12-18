@@ -300,8 +300,8 @@ function loadRules() {
             }
             const matchHtml = matchInfo.length ? matchInfo.join('<br>') : '<span class="text-muted small">-</span>';
             const fullLinkStr = `${r.alias}---${link}`;
-            
-            // [修改] 在 <tr> 上增加了 data-email 属性，界面不显示，但代码能读到
+            const acc = cachedAccounts.find(a => a.name === r.name);
+            const hiddenEmail = acc ? escapeHtml(acc.email) : "";
             tbody.append(`
                 <tr data-email="${hiddenEmail}">
                     <td><input type="checkbox" class="rule-check" value="${r.id}"></td>
@@ -850,16 +850,11 @@ function filterRules(val) {
     const k = val.toLowerCase();
     $("#rule-list-body tr").each(function() {
         let content = $(this).text().toLowerCase();
-        
-        // [新增] 把藏在 data-email 里的邮箱拼接到搜索内容里
         content += " " + ($(this).attr("data-email") || "").toLowerCase();
-
-        $(this).find('input').each(function() { content += " " + $(this).val().toLowerCase(); });
-        
+        $(this).find('input').each(function() { content += " " + $(this).val().toLowerCase(); });      
         $(this).toggle(content.includes(k));
     });
 }
-
 function generateRandomRuleCode() {
     $("#rule-code").val(Math.random().toString(36).substring(2, 12).toUpperCase());
 }
