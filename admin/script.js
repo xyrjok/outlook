@@ -21,15 +21,13 @@ function doLogin() {
         
         const token = "Basic " + btoa(u + ":" + p);
         
-        // 修复点：使用兼容性更好的方式获取按钮对象
-        const ev = window.event;
-        const btn = ev ? $(ev.target) : $("#login-overlay button");
-        const orgText = btn.length ? btn.text() : "登录";
-        if(btn.length) btn.text("登录中...").prop("disabled", true);
+        const btn = $(event.target);
+        const orgText = btn.text();
+        btn.text("登录中...").prop("disabled", true);
 
         fetch(`${API_BASE}/login`, { method: 'POST', headers: { "Authorization": token } })
         .then(r => {
-            if(btn.length) btn.text(orgText).prop("disabled", false);
+            btn.text(orgText).prop("disabled", false);
             if(r.ok) {
                 localStorage.setItem("auth_token", token);
                 $("#login-overlay").fadeOut();
@@ -40,7 +38,7 @@ function doLogin() {
             }
         })
         .catch(err => {
-            if(btn.length) btn.text(orgText).prop("disabled", false);
+            btn.text(orgText).prop("disabled", false);
             alert("连接失败: " + err.message);
         });
 
@@ -73,12 +71,7 @@ function showSection(id) {
     $(".content-section").removeClass("active");
     $(`#${id}`).addClass("active");
     $(".list-group-item").removeClass("active");
-    
-    // 修复点：兼容性获取当前点击元素
-    const ev = window.event;
-    if(ev && ev.currentTarget) {
-        $(ev.currentTarget).addClass("active");
-    }
+    $(event.currentTarget).addClass("active");
     
     if(id === 'section-accounts') loadAccounts();
     if(id === 'section-rules') loadRules();
@@ -104,7 +97,6 @@ function loadAccounts() {
 
         if(list.length === 0) {
             tbody.html('<tr><td colspan="6" class="text-center p-4 text-muted">暂无账号</td></tr>');
-            $("#acc-page-info").text("共 0 条记录");
             return;
         }
 
@@ -134,8 +126,7 @@ function loadAccounts() {
             dataList.append(`<option value="${escapeHtml(acc.name)}">${acc.email||''}</option>`);
         });
         
-        // 更新统计
-        $("#acc-page-info").text(`共 ${list.length} 条记录`);
+        $("#acc-page-info").text(`共 ${list.length} 条`);
     });
 }
 
@@ -164,18 +155,11 @@ function openEditAccount(id) {
 function saveAccount() {
     const rawConfig = $("#acc-api-config").val().trim();
     const parts = rawConfig.split(/[,，|]/).map(s => s.trim());
-    const email = $("#acc-email").val().trim();
-    const id = $("#acc-id").val();
-
-    // 唯一性检查：新增时检查邮箱是否重复
-    if(!id && cachedAccounts.some(a => a.email === email)) {
-        return alert("保存失败：邮箱地址 " + email + " 已存在！");
-    }
-
+    
     const data = {
-        id: id || undefined,
+        id: $("#acc-id").val() || undefined,
         name: $("#acc-name").val(),
-        email: email,
+        email: $("#acc-email").val(),
         client_id: parts[0] || "",
         client_secret: parts[1] || "",
         refresh_token: parts[2] || ""
@@ -255,33 +239,12 @@ function processAccountImport(text) {
                 refresh_token: creds[2] || ""
             };
         });
-
-        // 批量导入邮箱唯一性检查
-        const existingEmails = cachedAccounts.map(a => a.email);
-        const skipped = [];
-        const toImport = [];
-
-        json.forEach(item => {
-            if (existingEmails.includes(item.email)) {
-                skipped.push(item.email);
-            } else {
-                toImport.push(item);
-            }
-        });
-
-        if (toImport.length === 0) {
-            return alert("导入结束：所有账号均已存在。\n已跳过: " + skipped.join(', '));
-        }
         
-        fetch(`${API_BASE}/accounts`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(toImport) })
+        fetch(`${API_BASE}/accounts`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(json) })
         .then(r => r.json()).then(res => {
             if(res.ok) {
                 bootstrap.Modal.getInstance(document.getElementById('batchAccountImportModal')).hide();
-                let msg = "导入成功！";
-                if(skipped.length > 0) {
-                    msg += "\n以下已存在的邮箱已被跳过：\n" + skipped.join('\n');
-                }
-                alert(msg);
+                alert("导入成功");
                 loadAccounts();
             } else alert("导入失败: " + res.error);
         });
@@ -307,7 +270,6 @@ function loadRules() {
         
         if(!list || list.length === 0) {
             tbody.html('<tr><td colspan="8" class="text-center p-4 text-muted">暂无规则</td></tr>');
-            $("#rule-page-info").text("共 0 条记录");
             return;
         }
 
@@ -316,6 +278,7 @@ function loadRules() {
             const link = `${host}/${r.query_code}`;
             const isExpired = r.valid_until && Date.now() > r.valid_until;
             
+            // [核心修复] 只定义一次 acc，并用于获取 hiddenEmail
             const acc = cachedAccounts.find(a => a.name === r.name);
             const hiddenEmail = acc ? escapeHtml(acc.email) : "";
 
@@ -344,6 +307,7 @@ function loadRules() {
             const matchHtml = matchInfo.length ? matchInfo.join('<br>') : '<span class="text-muted small">-</span>';
             const fullLinkStr = `${r.alias}---${link}`;
             
+            // 渲染行，包含隐藏的 data-email
             tbody.append(`
                 <tr data-email="${hiddenEmail}">
                     <td><input type="checkbox" class="rule-check" value="${r.id}"></td>
@@ -366,7 +330,6 @@ function loadRules() {
                 </tr>
             `);
         });
-        $("#rule-page-info").text(`共 ${list.length} 条记录`);
     });
 }
 
@@ -472,9 +435,9 @@ function submitBatchRuleImport() {
     } else {
         const file = document.getElementById('import-rule-file-input').files[0];
         if(!file) return showToast("请选择文件");
-        const reader = new FileReader();
+        const r = new FileReader();
         reader.onload = e => processRuleImport(e.target.result);
-        reader.readAsText(file);
+        r.readAsText(file);
     }
 }
 
@@ -536,7 +499,6 @@ function loadTasks() {
 
         if(list.length === 0) {
             tbody.html('<tr><td colspan="7" class="text-center p-4 text-muted">暂无任务</td></tr>');
-            $("#task-page-info").text("共 0 条记录");
             return;
         }
 
@@ -570,7 +532,6 @@ function loadTasks() {
                 </tr>
             `);
         });
-        $("#task-page-info").text(`共 ${list.length} 条记录`);
     });
 }
 
@@ -601,7 +562,7 @@ function toggleTaskLoop(id, isLoop) {
 function saveTask() {
     const id = $("#edit-task-id").val();
     const accId = getSelectedAccountId();
-    if(!accId) return alert("没有账号！");
+    if(!accId) return alert("没有些号！");
 
     const delay = $("#delay-config").val(); 
     const localDateStr = $("#date-a").val();
@@ -693,13 +654,11 @@ function manualRun(id) {
 
 function sendNow() {
     const accId = getSelectedAccountId();
-    if(!accId) return alert("没有账号！");
+    if(!accId) return alert("没有些号！");
 
-    // 修复点：使用兼容性获取
-    const ev = window.event;
-    const btn = ev ? $(ev.target) : null;
-    const org = btn ? btn.html() : "立即发送";
-    if(btn) btn.html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
+    const btn = $(event.target);
+    const org = btn.html();
+    btn.html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
     
     const data = {
         account_id: accId,
@@ -711,7 +670,7 @@ function sendNow() {
     
     fetch(`${API_BASE}/tasks`, { method:'POST', headers: getHeaders(), body: JSON.stringify(data) })
     .then(r => r.json()).then(res => {
-        if(btn) btn.html(org).prop('disabled', false);
+        btn.html(org).prop('disabled', false);
         if(res.ok) alert("发送成功");
         else alert("失败: " + res.error);
     });
@@ -856,12 +815,6 @@ function toggleAll(type) {
     $(`.${type}-check`).prop("checked", checked);
 }
 
-// 搜索栏清除逻辑
-function clearSearch(inputId, filterFunc) {
-    $(`#${inputId}`).val('');
-    filterFunc('');
-}
-
 function filterAccounts(val) {
     const k = val.toLowerCase();
     $("#account-list-body tr").each(function() {
@@ -885,7 +838,7 @@ function generateRandomRuleCode() {
 
 function escapeHtml(text) {
     if(!text) return "";
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(>/g, "&gt;").replace(/"/g, "&quot;");
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function downloadFile(content, filename) {
@@ -947,7 +900,6 @@ function renderGroupList() {
     tbody.empty();
     if(cachedGroups.length === 0) {
         tbody.html('<tr><td colspan="5" class="text-center text-muted p-4">暂无策略组</td></tr>');
-        $("#group-page-info").text("共 0 条记录");
         return;
     }
     cachedGroups.forEach(g => {
@@ -964,8 +916,6 @@ function renderGroupList() {
             </tr>
         `);
     });
-    // 更新统计
-    $("#group-page-info").text(`共 ${cachedGroups.length} 条记录`);
 }
 
 function updateRuleModalGroupSelect() {
