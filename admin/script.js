@@ -520,10 +520,11 @@ function processRuleImport(text) {
         const items = lines.map(l => {
             const p = l.split('\t').map(s=>s.trim());
             const days = parseInt(p[4]);
+            const gId = (cachedGroups.find(g => g.name === (p[8]||'')) || {}).id || null;
             return {
                 name: p[0], alias: p[1]||'', query_code: p[2]||'', fetch_limit: p[3]||'5',
                 valid_until: days ? Date.now() + days*86400000 : null,
-                match_sender: p[5]||'', match_receiver: p[6]||'', match_body: p[7]||'', group_id: p[8] || null
+                match_sender: p[5]||'', match_receiver: p[6]||'', match_body: p[7]||'', group_id: gId
             };
         });
         
@@ -539,7 +540,8 @@ function processRuleImport(text) {
 function exportRules() {
     const content = cachedRules.map(r => {
         const days = r.valid_until ? Math.ceil((r.valid_until - Date.now())/86400000) : '';
-        return `${r.name}\t${r.alias}\t${r.query_code}\t${r.fetch_limit}\t${days}\t${r.match_sender||''}\t${r.match_receiver||''}\t${r.match_body||''}\t${r.group_id||''}`;
+        const gName = (cachedGroups.find(g => g.id == r.group_id) || {}).name || '';
+        return `${r.name}\t${r.alias}\t${r.query_code}\t${r.fetch_limit}\t${days}\t${r.match_sender||''}\t${r.match_receiver||''}\t${r.match_body||''}\t${gName}`;
     }).join('\n');
     downloadFile(content, "rules_backup.txt");
 }
