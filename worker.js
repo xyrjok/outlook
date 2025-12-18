@@ -6,60 +6,8 @@
 
 export default {
     async fetch(request, env, ctx) {
-      const url = new URL(request.url);
-      const path = url.pathname;
-      
-      // 1. CORS 跨域处理 & OPTIONS 预检
-      if (request.method === "OPTIONS") {
-        return new Response(null, {
-          headers: { 
-            "Access-Control-Allow-Origin": "*", 
-            "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS", 
-            "Access-Control-Allow-Headers": "*" 
-          }
-        });
-      }
-
-      // 2. 静态资源托管
-      // 访问 /admin/ 或 /assets/ 或 .文件 时，走静态资源
-      if (path.startsWith('/assets/') || path.startsWith('/admin/') || path.includes('.')) {
-        return env.ASSETS.fetch(request);
-      }
-      // 根路径重定向到后台首页
-      if (path === '/' || path === '/index.html') {
-        return Response.redirect(url.origin + '/admin/index.html', 302);
-      }
-
-      // 3. 公开邮件查询接口 (拦截短链接，例如 /CODE123)
-      // 排除 /api/ 开头和系统路径
-      if (!path.startsWith('/api/') && !path.startsWith('/admin') && path.length > 1) {
-        return handlePublicQuery(path.substring(1), env);
-      }
-
-      // 4. 登录验证接口
-      if (path === '/api/login') {
-          const authHeader = request.headers.get("Authorization");
-          if (checkAuth(authHeader, env)) {
-             return jsonResp({ success: true });
-          }
-          return jsonResp({ error: "Unauthorized" }, 401);
-      }
-  
-      // 5. 全局身份验证 (Basic Auth)
-      // 所有 /api/ 接口都需要鉴权
-      const authHeader = request.headers.get("Authorization");
-      if (!checkAuth(authHeader, env)) {
-        return jsonResp({ error: "Unauthorized" }, 401);
-      }
-  
-      // 6. API 路由分发
-      if (path.startsWith('/api/groups')) return handleGroups(request, env); // <--- [新增] 策略组路由
-      if (path.startsWith('/api/accounts')) return handleAccounts(request, env);
-      if (path.startsWith('/api/tasks')) return handleTasks(request, env);
-      if (path.startsWith('/api/emails')) return handleEmails(request, env);
-      if (path.startsWith('/api/rules')) return handleRules(request, env);
-      
-      return new Response("MS Backend Active", { headers: corsHeaders() });
+      // 仅用于测试 Worker 是否在线，不处理业务逻辑
+      return new Response("Cron Worker Active", { status: 200 });
     },
   
     // 定时任务触发器 (用于处理发信队列和循环保活)
