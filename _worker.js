@@ -44,16 +44,16 @@ export default {
           }
           return jsonResp({ error: "Unauthorized" }, 401);
       }
-  
+   
       // 5. 全局身份验证 (Basic Auth)
       // 所有 /api/ 接口都需要鉴权
       const authHeader = request.headers.get("Authorization");
       if (!checkAuth(authHeader, env)) {
         return jsonResp({ error: "Unauthorized" }, 401);
       }
-  
+   
       // 6. API 路由分发
-      if (path.startsWith('/api/groups')) return handleGroups(request, env); // <--- [新增] 策略组路由
+      if (path.startsWith('/api/groups')) return handleGroups(request, env); 
       if (path.startsWith('/api/accounts')) return handleAccounts(request, env);
       if (path.startsWith('/api/tasks')) return handleTasks(request, env);
       if (path.startsWith('/api/emails')) return handleEmails(request, env);
@@ -472,9 +472,21 @@ async function handleGroups(req, env) {
 
 // 公开查询接口逻辑
 async function handlePublicQuery(code, env) {
+    // [新增] 1. 定义统一 CSS 样式 (以后改字体、间距就在这改)
+    const cssStyle = `
+        body { font-size: 16px; font-family: sans-serif; line-height: 1.5; padding: 15px; color: #000; background: #fff; }
+        .item { margin-bottom: 15px; border-bottom: 1px dashed #eee; padding-bottom: 10px; }
+        .msg { padding: 10px 0; color: #333; }
+    `;
+    
+    // [新增] 2. 页面渲染函数 (自动套用上面的样式)
+    const renderPage = (content) => `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>邮件查询</title><style>${cssStyle}</style></head><body>${content}</body></html>`;
+
     // 1. 查规则
     const rule = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM access_rules WHERE query_code=?").bind(code).first();
-    if (!rule) return new Response("查询链接无效 (Link Invalid)", {status: 404, headers: {"Content-Type": "text/plain;charset=UTF-8"}});
+    
+    // [修改] 使用 renderPage 返回带样式的错误提示
+    if (!rule) return new Response(renderPage('<div class="msg">查询链接无效 (Link Invalid)</div>'), {status: 404, headers: {"Content-Type": "text/html;charset=UTF-8"}});
 
     // === [新增] 如果绑定了策略组，读取组配置覆盖 rule 的本地配置 ===
     if (rule.group_id) {
@@ -488,7 +500,7 @@ async function handlePublicQuery(code, env) {
 
     // 2. 查有效期
     if (rule.valid_until && Date.now() > rule.valid_until) {
-        return new Response("链接已过期 (Link Expired)", {status: 403, headers: {"Content-Type": "text/plain;charset=UTF-8"}});
+        return new Response(renderPage('<div class="msg">链接已过期 (Link Expired)</div>'), {status: 403, headers: {"Content-Type": "text/html;charset=UTF-8"}});
     }
 
     // 3. 查对应账号 (通过 name 匹配)
@@ -501,7 +513,7 @@ async function handlePublicQuery(code, env) {
         acc = await env.XYTJ_OUTLOOK.prepare("SELECT * FROM accounts WHERE email LIKE ?").bind(`%${rule.name}%`).first();
     }
 
-    if (!acc) return new Response("未找到对应的账号配置 (Account Not Found)", {status: 404, headers: {"Content-Type": "text/plain;charset=UTF-8"}});
+    if (!acc) return new Response(renderPage('<div class="msg">未找到对应的账号配置 (Account Not Found)</div>'), {status: 404, headers: {"Content-Type": "text/html;charset=UTF-8"}});
 
     // 解析 fetch_limit (支持 "抓取数-显示数" 格式，如 "5-3"；若为单数则两者一致)
     let fetchNum = 20, showNum = 5;
@@ -550,19 +562,22 @@ async function handlePublicQuery(code, env) {
         // 6. 截取显示数量
         emails = emails.slice(0, showNum);
 
-        // 7. 格式化输出 (纯文本)
-        if (emails.length === 0) return new Response("暂无符合条件的邮件", {headers: {"Content-Type": "text/plain;charset=UTF-8"}});
+        // [修改] 暂无邮件提示，使用 renderPage
+        if (emails.length === 0) {
+            return new Response(renderPage('<div class="msg">暂无符合条件的邮件</div>'), {headers: {"Content-Type": "text/html;charset=UTF-8"}});
+        }
 
-        const text = emails.map(e => {
+        // [修改] 遍历生成邮件列表，使用 CSS 中定义的 .item 样式
+        const listHtml = emails.map(e => {
             const timeStr = new Date(e.received_at).toLocaleString('zh-CN', {timeZone:'Asia/Shanghai'});
-            
-            // [修改] 直接使用上面生成的 displayText，删除原来重复的处理逻辑
-            return `<div style="padding-bottom: 10px;">${timeStr} | ${e.displayText}</div>`;
+            return `<div class="item">${timeStr} | ${e.displayText}</div>`;
         }).join('');
-        const html = `<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><body style="font-size: 16px; font-family: sans-serif; line-height: 1.3; color: #000; background: #fff;">${text}</body>`;
-        return new Response(html, { headers: {"Content-Type": "text/html;charset=UTF-8"} });
+
+        return new Response(renderPage(listHtml), { headers: {"Content-Type": "text/html;charset=UTF-8"} });
+
     } catch(e) {
-        return new Response("查询出错: " + e.message, {status: 500, headers: {"Content-Type": "text/plain;charset=UTF-8"}});
+        // [修改] 报错提示，使用 renderPage
+        return new Response(renderPage(`<div class="msg">查询出错: ${e.message}</div>`), {status: 500, headers: {"Content-Type": "text/html;charset=UTF-8"}});
     }
 }
 
