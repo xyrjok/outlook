@@ -397,9 +397,29 @@ function renderRulesTable() {
 function filterRules(val) {
     const k = val.toLowerCase();
     pageState.rule.filtered = pageState.rule.data.filter(r => {
+        // 1. 基础信息：账号名、别名、查询码、邮箱
         const acc = cachedAccounts.find(a => a.name === r.name);
         const email = acc ? acc.email : "";
-        const content = (r.name + " " + r.alias + " " + r.query_code + " " + email).toLowerCase();
+        
+        // 2. 策略组名称
+        let groupName = "";
+        if (r.group_id) {
+            const g = cachedGroups.find(x => x.id == r.group_id);
+            if (g) groupName = g.name;
+        }
+
+        // 3. 拼接所有内容进行搜索 (包含: 基础信息 + 组名 + 自定义匹配的发/收/文)
+        const content = (
+            r.name + " " + 
+            r.alias + " " + 
+            r.query_code + " " + 
+            email + " " + 
+            groupName + " " + 
+            (r.match_sender || "") + " " + 
+            (r.match_receiver || "") + " " + 
+            (r.match_body || "")
+        ).toLowerCase();
+
         return content.includes(k);
     });
     pageState.rule.page = 1;
