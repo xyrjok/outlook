@@ -7,12 +7,20 @@ let cachedTasks = [];
 let cachedGroups = []; 
 
 // [新增] 分页相关状态
-const PAGE_SIZE = 10;
+// const PAGE_SIZE = 10; // 已移除固定常量
 let pageState = {
-    acc: { page: 1, data: [], filtered: [] },
-    rule: { page: 1, data: [], filtered: [] },
-    task: { page: 1, data: [], filtered: [] }
+    acc: { page: 1, size: 30, data: [], filtered: [] },
+    rule: { page: 1, size: 30, data: [], filtered: [] },
+    task: { page: 1, size: 20, data: [], filtered: [] }
 };
+
+function changePageSize(type, size) {
+    pageState[type].size = parseInt(size);
+    pageState[type].page = 1;
+    if (type === 'acc') renderAccountsTable();
+    if (type === 'rule') renderRulesTable();
+    if (type === 'task') renderTasksTable();
+}
 
 function clearSearch(inputId, filterFunc) {
     $(`#${inputId}`).val('');
@@ -21,7 +29,7 @@ function clearSearch(inputId, filterFunc) {
 
 function changePage(type, delta) {
     const s = pageState[type];
-    const maxPage = Math.ceil(s.filtered.length / PAGE_SIZE) || 1;
+    const maxPage = Math.ceil(s.filtered.length / s.size) || 1;
     let newPage = s.page + delta;
     if (newPage < 1) newPage = 1;
     if (newPage > maxPage) newPage = maxPage;
@@ -129,9 +137,9 @@ function loadAccounts() {
 }
 
 function renderAccountsTable() {
-    const { filtered, page } = pageState.acc;
-    const start = (page - 1) * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
+    const { filtered, page, size } = pageState.acc;
+    const start = (page - 1) * size;
+    const end = start + size;
     const list = filtered.slice(start, end);
     const tbody = $("#account-list-body");
     tbody.empty();
@@ -163,7 +171,7 @@ function renderAccountsTable() {
             `);
         });
     }
-    $("#acc-page-info").text(`共 ${filtered.length} 条 (第 ${page}/${Math.ceil(filtered.length/PAGE_SIZE)||1} 页)`);
+    $("#acc-page-info").text(`共 ${filtered.length} 条 (第 ${page}/${Math.ceil(filtered.length/size)||1} 页)`);
 }
 
 // [修改] 过滤账号 (支持分页)
@@ -326,9 +334,9 @@ function loadRules() {
 }
 
 function renderRulesTable() {
-    const { filtered, page } = pageState.rule;
-    const start = (page - 1) * PAGE_SIZE;
-    const list = filtered.slice(start, start + PAGE_SIZE);
+    const { filtered, page, size } = pageState.rule;
+    const start = (page - 1) * size;
+    const list = filtered.slice(start, start + size);
     const tbody = $("#rule-list-body");
     tbody.empty();
     
@@ -390,7 +398,7 @@ function renderRulesTable() {
             `);
         });
     }
-    $("#rule-page-info").text(`共 ${filtered.length} 条 (第 ${page}/${Math.ceil(filtered.length/PAGE_SIZE)||1} 页)`);
+    $("#rule-page-info").text(`共 ${filtered.length} 条 (第 ${page}/${Math.ceil(filtered.length/size)||1} 页)`);
 }
 
 // [修改] 过滤规则 (支持分页)
@@ -596,9 +604,9 @@ function loadTasks() {
 }
 
 function renderTasksTable() {
-    const { filtered, page } = pageState.task;
-    const start = (page - 1) * PAGE_SIZE;
-    const list = filtered.slice(start, start + PAGE_SIZE);
+    const { filtered, page, size } = pageState.task;
+    const start = (page - 1) * size;
+    const list = filtered.slice(start, start + size);
     const tbody = $("#task-list-body");
     tbody.empty();
 
@@ -636,7 +644,7 @@ function renderTasksTable() {
             `);
         });
     }
-    $("#task-page-info").text(`共 ${filtered.length} 条 (第 ${page}/${Math.ceil(filtered.length/PAGE_SIZE)||1} 页)`);
+    $("#task-page-info").text(`共 ${filtered.length} 条 (第 ${page}/${Math.ceil(filtered.length/size)||1} 页)`);
 }
 
 // [修改] 过滤任务 (支持分页)
