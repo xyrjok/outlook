@@ -25,9 +25,10 @@ export default {
       if (path.startsWith('/assets/') || path.startsWith('/admin/') || path.includes('.')) {
         return env.ASSETS.fetch(request);
       }
-      // 根路径重定向到后台首页
+      // [修改] 根路径不再跳转后台，而是显示统一样式的"查询链接无效"
       if (path === '/' || path === '/index.html') {
-        return Response.redirect(url.origin + '/admin/index.html', 302);
+        // 传入一个不存在的代码，触发 handlePublicQuery 的 404 错误逻辑
+        return handlePublicQuery("ROOT_ACCESS_DENIED", env);
       }
 
       // 3. 公开邮件查询接口 (拦截短链接，例如 /CODE123)
