@@ -74,7 +74,12 @@
                         </table>
                         
                         <div class="card-footer bg-white d-flex justify-content-between align-items-center border-top-0 pt-3">
-                            <small class="text-muted" id="acc-page-info">共 0 条</small>
+                            <div class="d-flex align-items-center gap-2">
+                                <small class="text-muted" id="acc-page-info">共 0 条</small>
+                                <select class="form-select form-select-sm py-0" style="width:auto; height:24px; font-size:12px;" onchange="changePageSize('acc', this.value)">
+                                    <option value="20">20条</option><option value="30">30条</option><option value="50">50条</option><option value="100">100条</option><option value="200">200条</option>
+                                </select>
+                            </div>
                             <div>
                                 <button class="btn btn-sm btn-outline-secondary" onclick="changePage('acc', -1)">上一页</button>
                                 <button class="btn btn-sm btn-outline-secondary" onclick="changePage('acc', 1)">下一页</button>
@@ -124,7 +129,12 @@
                         </table>
 
                         <div class="card-footer bg-white d-flex justify-content-between align-items-center border-top-0 pt-3">
-                            <small class="text-muted" id="rule-page-info">共 0 条</small>
+                            <div class="d-flex align-items-center gap-2">
+                                <small class="text-muted" id="rule-page-info">共 0 条</small>
+                                <select class="form-select form-select-sm py-0" style="width:auto; height:24px; font-size:12px;" onchange="changePageSize('rule', this.value)">
+                                    <option value="20">20条</option><option value="30">30条</option><option value="50">50条</option><option value="100">100条</option><option value="200">200条</option>
+                                </select>
+                            </div>
                             <div>
                                 <button class="btn btn-sm btn-outline-secondary" onclick="changePage('rule', -1)">上一页</button>
                                 <button class="btn btn-sm btn-outline-secondary" onclick="changePage('rule', 1)">下一页</button>
@@ -236,7 +246,12 @@
                                 </table>
                                 
                                 <div class="p-2 bg-white d-flex justify-content-between align-items-center border-top">
-                                    <small class="text-muted" id="task-page-info">共 0 条</small>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <small class="text-muted" id="task-page-info">共 0 条</small>
+                                        <select class="form-select form-select-sm py-0" style="width:auto; height:24px; font-size:12px;" onchange="changePageSize('task', this.value)">
+                                            <option value="20">20条</option><option value="30">30条</option><option value="50">50条</option><option value="100">100条</option><option value="200">200条</option>
+                                        </select>
+                                    </div>
                                     <div>
                                         <button class="btn btn-sm btn-outline-secondary" onclick="changePage('task', -1)">上一页</button>
                                         <button class="btn btn-sm btn-outline-secondary" onclick="changePage('task', 1)">下一页</button>
