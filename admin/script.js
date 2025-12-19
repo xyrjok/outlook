@@ -934,7 +934,8 @@ function toggleAll(type) {
 // 注意：原有的 filterAccounts, filterRules, filterTasks 已被替换为支持分页的版本，并移至各自模块区域
 
 function generateRandomRuleCode() {
-    $("#rule-code").val(Math.random().toString(36).substring(2, 12).toUpperCase());
+    const code = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 15).toUpperCase();
+    $("#rule-code").val(code);
 }
 
 function escapeHtml(text) {
