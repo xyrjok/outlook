@@ -1091,9 +1091,9 @@ function delGroup(id) {
     fetch(`${API_BASE}/groups?id=${id}`, { method: 'DELETE', headers: getHeaders() })
     .then(() => { showToast("已删除"); loadGroups(); });
 }
-
-// 启动
 if(localStorage.getItem("auth_token")) {
-    $("#login-overlay").hide();
+    $("#login-overlay").hide(); 
     initApp();
+} else {
+    $("#login-overlay").show();
 }
