@@ -416,9 +416,8 @@ async function handleRules(req, env) {
     
     if (method === 'POST') {
         const d = await req.json();
-        // 如果没有query_code则生成随机码
-        const code = d.query_code || Math.random().toString(36).substring(2, 12).toUpperCase();
-        
+        // 如果没有query_code则生成随机码 (修改为15位)
+        const code = d.query_code || (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 15).toUpperCase();
         // 修改：增加 match_receiver 和 group_id
         await env.XYTJ_OUTLOOK.prepare(
             "INSERT INTO access_rules (name, alias, query_code, fetch_limit, valid_until, match_sender, match_receiver, match_body, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
