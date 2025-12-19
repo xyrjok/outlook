@@ -474,9 +474,8 @@ async function handleGroups(req, env) {
 async function handlePublicQuery(code, env) {
     // [新增] 1. 定义统一 CSS 样式 (以后改字体、间距就在这改)
     const cssStyle = `
-        body { font-size: 16px; font-family: sans-serif; line-height: 1.5; padding: 15px; color: #000; background: #fff; }
-        .item { margin-bottom: 15px; border-bottom: 1px dashed #eee; padding-bottom: 10px; }
-        .msg { padding: 10px 0; color: #333; }
+        body { font-size: 16px; font-family: sans-serif; line-height: 1.3; padding: 15px; color: #000; background: #333; }
+        .item, .msg { margin-bottom: 15px;}
     `;
     
     // [新增] 2. 页面渲染函数 (自动套用上面的样式)
