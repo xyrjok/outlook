@@ -350,15 +350,14 @@ async function handleTasks(req, env) {
         }
 
         // 场景 B: 编辑任务保存 或 切换循环开关
-        // 基础更新语句
-        let sql = "UPDATE send_tasks SET account_id=?, to_email=?, subject=?, content=?, delay_config=?, is_loop=? WHERE id=?";
+        // [修改] 增加 status='pending' 确保任务重启
+        let sql = "UPDATE send_tasks SET account_id=?, to_email=?, subject=?, content=?, delay_config=?, is_loop=?, status='pending' WHERE id=?";
         let params = [d.account_id, d.to_email, d.subject, d.content, d.delay_config, d.is_loop?1:0, d.id];
 
-        // 如果前端传了 base_date (修改了时间)，则同时更新 next_run_at
-        // 注意：仅切换循环开关时 d.base_date 通常为空，此时不应重置时间
+        // 如果前端传了 base_date (修改了时间)，则同时更新 next_run_at 并重置状态
         if (d.base_date) {
             const newRun = new Date(d.base_date).getTime();
-            sql = "UPDATE send_tasks SET account_id=?, to_email=?, subject=?, content=?, delay_config=?, is_loop=?, next_run_at=? WHERE id=?";
+            sql = "UPDATE send_tasks SET account_id=?, to_email=?, subject=?, content=?, delay_config=?, is_loop=?, next_run_at=?, status='pending' WHERE id=?";
             params = [d.account_id, d.to_email, d.subject, d.content, d.delay_config, d.is_loop?1:0, newRun, d.id];
         }
 
