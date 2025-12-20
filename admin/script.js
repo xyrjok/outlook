@@ -692,7 +692,7 @@ function saveTask() {
         account_id: accId,
         to_email: $("#send-to").val(),
         subject: $("#send-subject").val() || "Remind",
-        content: $("#send-content").val() || ("Reminder of current time: " + new Date().toISOString()),
+        content: $("#send-content").val() || ("Reminder of current time: " + new Date().toUTCString();),
         is_loop: $("#loop-switch").is(":checked"),
         delay_config: delay,
         base_date: utcDateStr
@@ -781,7 +781,7 @@ function sendNow() {
         account_id: accId,
         to_email: $("#send-to").val(),
         subject: $("#send-subject").val() || "Remind",
-        content: $("#send-content").val() || ("Reminder of current time: " + new Date().toISOString()),
+        content: $("#send-content").val() || ("Reminder of current time: " + new Date().toUTCString();),
         immediate: true
     };
     
