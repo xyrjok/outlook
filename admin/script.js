@@ -1131,9 +1131,14 @@ function delGroup(id) {
     fetch(`${API_BASE}/groups?id=${id}`, { method: 'DELETE', headers: getHeaders() })
     .then(() => { showToast("已删除"); loadGroups(); });
 }
+// 【修改位置】：替换整个底部的 if-else 逻辑块
 if(localStorage.getItem("auth_token")) {
-    $("#login-overlay").hide(); 
+    // 已登录：先恢复 d-flex 布局类，再显示后台容器
+    $("#wrapper").addClass("d-flex").show();
+    $("#login-overlay").hide(); // 确保登录框隐藏
     initApp();
 } else {
+    // 未登录：只显示登录框
     $("#login-overlay").show();
+    $("#wrapper").removeClass("d-flex").hide(); // 确保后台隐藏
 }
