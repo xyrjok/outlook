@@ -64,6 +64,7 @@ function doLogin() {
             btn.text(orgText).prop("disabled", false);
             if(r.ok) {
                 localStorage.setItem("auth_token", token);
+                $("#wrapper").addClass("d-flex").show(); 
                 $("#login-overlay").fadeOut();
                 initApp();
             } else {
