@@ -815,14 +815,44 @@ function exportTasks() {
 }
 
 function openBatchTaskModal() {
-    $("#batch-task-json").val("");
+    $("#import-task-text").val("");
+    $("#import-task-file-input").val("");
     new bootstrap.Modal(document.getElementById('batchTaskModal')).show();
 }
 
 function submitBatchTasks() {
+    const activeTab = $("#taskImportTabs .active").attr("data-bs-target");
+    if (activeTab === "#tab-task-paste") {
+        processTaskImport($("#import-task-text").val());
+    } else {
+        const file = document.getElementById('import-task-file-input').files[0];
+        if(!file) return showToast("请选择文件");
+        const reader = new FileReader();
+        reader.onload = e => processTaskImport(e.target.result);
+        reader.readAsText(file);
+    }
+}
+
+function processTaskImport(text) {
+    if(!text.trim()) return showToast("内容为空");
     try {
-        const json = JSON.parse($("#batch-task-json").val());
-        if(!Array.isArray(json)) throw new Error("必须是数组");
+        const lines = text.split('\n').filter(l => l.trim());
+        const json = lines.map(line => {
+            const p = line.split('\t');
+            // 格式: 账号名, 收件人, 主题, 内容, 延迟, 循环(0/1), 时间
+            const accName = (p[0]||"").trim();
+            const acc = cachedAccounts.find(a => a.name === accName);
+            
+            return {
+                account_id: acc ? acc.id : null, 
+                to_email: (p[1]||"").trim(),
+                subject: (p[2]||"").trim(),
+                content: (p[3]||"").trim(),
+                delay_config: (p[4]||"").trim(),
+                is_loop: (p[5]||"").trim() === '1',
+                base_date: (p[6]||"").trim()
+            };
+        });
         
         fetch(`${API_BASE}/tasks`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(json) }) 
         .then(() => {
@@ -830,7 +860,7 @@ function submitBatchTasks() {
             alert("批量添加成功");
             loadTasks();
         });
-    } catch(e) { alert("JSON 格式错误"); }
+    } catch(e) { alert("解析错误: " + e.message); }
 }
 
 // ================== 4. 收件箱 ==================
