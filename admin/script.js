@@ -804,6 +804,16 @@ function batchDelTasks() {
     }
 }
 
+function exportTasks() {
+    const content = cachedTasks.map(t => {
+        const sub = (t.subject || '').replace(/[\r\n]+/g, ' ');
+        const con = (t.content || '').replace(/[\r\n]+/g, ' ');
+        const next = t.next_run_at ? new Date(t.next_run_at).toLocaleString() : '';
+        return `${t.account_name||''}\t${t.to_email||''}\t${sub}\t${con}\t${t.delay_config||''}\t${t.is_loop?1:0}\t${next}`;
+    }).join('\n');
+    downloadFile(content, "tasks_backup.txt");
+}
+
 function openBatchTaskModal() {
     $("#batch-task-json").val("");
     new bootstrap.Modal(document.getElementById('batchTaskModal')).show();
