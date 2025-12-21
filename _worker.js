@@ -22,7 +22,7 @@ export default {
 
       // 2. 静态资源托管
       // 访问 /admin/ 或 /assets/ 或 .文件 时，走静态资源
-      if (path.startsWith('/assets/') || path.startsWith('/admin/') || path.includes('.')) {
+      if (path.startsWith('/assets/') || path.startsWith('/admin') || path.includes('.')) {
         return env.ASSETS.fetch(request);
       }
       // [修改] 根路径不再跳转后台，而是显示统一样式的"查询链接无效"
